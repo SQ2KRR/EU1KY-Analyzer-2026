@@ -57,13 +57,15 @@ The firmware currently includes:
 
 Full user manuals are currently available in:
 
-- 🇵🇱 **Polski** - [Instrukcja użytkownika](../../releases/download/v2.01/EU1KY-PL_2026_Instrukcja_uzytkownika.pdf)
-- 🇬🇧 **English** - [User manual](../../releases/download/v2.01/EU1KY-EN_2026_User_Manual_v1.0.pdf)
-- 🇷🇺 **Русский** - [Руководство пользователя](../../releases/download/v2.01/EU1KY-RU_2026_Rukovodstvo_v1.0.pdf)
+- 🇵🇱 **Polski** - [Instrukcja użytkownika](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.01/EU1KY-PL_2026_Instrukcja_uzytkownika.pdf)
+- 🇬🇧 **English** - [User manual](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.01/EU1KY-EN_2026_User_Manual_v1.0.pdf)
+- 🇩🇪 **Deutsch** - [Benutzerhandbuch](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.01/EU1KY-DE_2026_Benutzerhandbuch_v1.0.pdf)
+- 🇪🇸 **Español** - [Manual de usuario](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.01/EU1KY-ES_2026_Manual_de_usuario_v1.0.pdf)
+- 🇷🇺 **Русский** - [Руководство пользователя](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.01/EU1KY-RU_2026_Rukovodstvo_v1.0.pdf)
 
 The manuals describe firmware v2.0. Version v2.01 contains only minor corrections, so the documentation remains applicable.
 
-German and Spanish manuals are being prepared.
+A Japanese user manual is planned.
 
 The manuals describe firmware v2.0. Version v2.01 contains only minor corrections, so the documentation remains applicable.
 
