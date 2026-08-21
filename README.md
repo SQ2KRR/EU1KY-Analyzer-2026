@@ -15,6 +15,30 @@ It started with the addition of a Polish user interface. During further work and
 [**Download firmware, manuals and source code →**](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/tag/v2.01)
 
 The release includes ready-to-flash firmware for STM32F746G-DISCO, user manuals and the corresponding source package.
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <b>Main menu</b><br>
+      <img src="images/screenshots/01-main-menu-en.png" width="480">
+    </td>
+    <td align="center">
+      <b>Single measurement</b><br>
+      <img src="images/screenshots/02-single-measurement-en.png" width="480">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <b>Smith chart</b><br>
+      <img src="images/screenshots/03-smith-chart-en.png" width="480">
+    </td>
+    <td align="center">
+      <b>Metrology 2026 A/B comparison</b><br>
+      <img src="images/screenshots/04-metrology-2026-ab-en.png" width="480">
+    </td>
+  </tr>
+</table>
 
 ## Interface languages
 
