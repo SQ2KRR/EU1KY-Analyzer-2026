@@ -1,5 +1,7 @@
 # EU1KY Analyzer 2026
 
+![EU1KY Analyzer 2026](images/eu1ky-analyzer-2026-banner.png)
+
 Multilingual firmware and documentation for the **EU1KY Antenna Analyzer** based on STM32F746G-DISCO.
 
 This project is based on the original EU1KY firmware and later development by **DH1AKF, KD8CEC and other contributors**.
