@@ -12,7 +12,9 @@ It started with the addition of a Polish user interface. During further work and
 
 **EU1KY-PL 2026 v2.01**
 
-The ready-to-flash firmware, user manuals and corresponding source package are available in the **Releases** section.
+[**Download firmware, manuals and source code →**](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/tag/v2.01)
+
+The release includes ready-to-flash firmware for STM32F746G-DISCO, user manuals and the corresponding source package.
 
 ## Interface languages
 
