@@ -82,4 +82,4 @@ Feedback from other EU1KY users is very welcome, especially reports from differe
 
 This project is distributed under the **GNU General Public License v3.0**.
 
-See the `LICENSE` file for details.
+See the `LICENSE` file for details.   
