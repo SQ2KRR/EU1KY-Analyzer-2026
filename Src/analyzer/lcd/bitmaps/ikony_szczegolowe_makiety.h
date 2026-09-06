@@ -1,0 +1,27 @@
+#ifndef IKONY_SZCZEGOLOWE_MAKIETY_H_
+#define IKONY_SZCZEGOLOWE_MAKIETY_H_
+
+#include <stdint.h>
+
+typedef struct
+{
+    const uint8_t *dane;
+    uint32_t rozmiar;
+} UI_IKONA_SZCZEGOLOWA_t;
+
+#define UI_IKONA_SZCZEGOLOWA_SZEROKOSC 136U
+#define UI_IKONA_SZCZEGOLOWA_WYSOKOSC 50U
+#define UI_IKONY_SZCZEGOLOWE_LICZBA 5U
+
+enum
+{
+    UI_IKONA_SZCZEG_POMIAR = 0,
+    UI_IKONA_SZCZEG_ANALIZA,
+    UI_IKONA_SZCZEG_NARZEDZIA,
+    UI_IKONA_SZCZEG_USTAWIENIA,
+    UI_IKONA_SZCZEG_PLIKI
+};
+
+extern const UI_IKONA_SZCZEGOLOWA_t ui_ikony_szczegolowe_retro[UI_IKONY_SZCZEGOLOWE_LICZBA];
+
+#endif
