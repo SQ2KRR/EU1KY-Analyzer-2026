@@ -1,12 +1,19 @@
 # EU1KY Analyzer 2026
 
 <p align="center">
-  <img src="images/eu1ky-analyzer-2026-banner.png" alt="EU1KY Analyzer 2026" width="900">
+  <img src="images/eu1ky_analyzer_2026_v2_1_banner.png"
+       alt="EU1KY Analyzer 2026 v2.1"
+       width="900">
 </p>
 
-Multilingual firmware for the **EU1KY Antenna Analyzer**, based on STM32F746G-DISCO.
+<p align="center">
+  <b>Multilingual firmware for the EU1KY Antenna Analyzer</b><br>
+  STM32F746G-DISCO • PL / EN / DE / RU
+</p>
 
-This project continues the development of the original EU1KY antenna analyzer firmware and introduces a redesigned user interface, expanded measurement functions, calibration improvements and multilingual support.
+EU1KY Analyzer 2026 is a continued development of the original EU1KY antenna analyzer firmware.
+
+The project introduces a redesigned graphical interface, expanded measurement and calibration functions, improved usability and multilingual support while remaining compatible with the established EU1KY hardware platform.
 
 ---
 
@@ -21,9 +28,9 @@ This project continues the development of the original EU1KY antenna analyzer fi
 - 🇩🇪 German
 - 🇷🇺 Russian
 
-➡️ **[Download the latest firmware and source package](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)**
+### ➡️ [Download EU1KY Analyzer 2026 v2.1](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
 
-The current release contains:
+The current release provides:
 
 - ready-to-flash `.bin` firmware
 - Intel HEX `.hex` firmware
@@ -55,7 +62,7 @@ EU1KY Analyzer 2026 includes:
 - expanded diagnostics
 - multilingual graphical interface
 
-Version 2.1 also introduces a redesigned and unified visual interface and numerous usability and stability improvements.
+Version 2.1 also introduces a redesigned and unified visual interface together with numerous usability and stability improvements.
 
 ---
 
@@ -89,17 +96,17 @@ Version 2.1 also introduces a redesigned and unified visual interface and numero
 
 ## Firmware download
 
-For normal use, download the current release from:
+The recommended way to obtain the firmware is through the GitHub Releases page:
 
 ### ➡️ [Latest Release](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
 
-The release provides:
+The current release contains:
 
 - `EU1KY_Analyzer_2026_v2.1.bin`
 - `EU1KY_Analyzer_2026_v2.1.hex`
 - `EU1KY_Analyzer_2026_v2.1_sources.zip`
 
-The `.bin` file is the simplest choice for users who only want to install the firmware.
+For users who only want to install the firmware, the `.bin` file is normally the simplest choice.
 
 ---
 
@@ -122,9 +129,9 @@ Build configuration files are located in the repository root.
 
 A new detailed user manual for **EU1KY Analyzer 2026 v2.1** is currently being prepared.
 
-The documentation will describe the individual measurement modes step by step using actual screenshots from the analyzer.
+The new documentation will describe the individual measurement, calibration and diagnostic functions step by step using actual screenshots captured directly from the analyzer.
 
-Older manuals may describe previous firmware revisions and should therefore be treated as reference material only.
+Documentation for older releases remains useful as reference material, but some menus, functions and screen layouts may differ from version 2.1.
 
 ---
 
@@ -142,7 +149,7 @@ Support for additional controls and diagnostic functions is also included.
 
 ## Calibration notice
 
-Calibration data belongs to the individual analyzer hardware.
+Calibration data is specific to the individual analyzer hardware.
 
 After installing new firmware, always verify the calibration status before performing precision measurements.
 
