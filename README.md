@@ -122,6 +122,77 @@ For users who only want to install the firmware, the `.bin` file is normally the
 Previous firmware releases remain available in the **Releases** section.
 
 ---
+---
+
+## Previous release — EU1KY Analyzer 2026 v2.01
+
+Version **v2.01** is preserved as the previous complete release of EU1KY Analyzer 2026.
+
+It uses the earlier graphical interface and is still available for users who prefer that version or require the additional translations and manuals prepared for it.
+
+### EU1KY Analyzer 2026 v2.01
+
+**Interface languages:**
+
+- 🇵🇱 Polish
+- 🇬🇧 English
+- 🇩🇪 German
+- 🇪🇸 Spanish
+- 🇷🇺 Russian
+- 🇯🇵 Japanese
+
+**User manuals available for this release:**
+
+- Polish
+- English
+- German
+- Spanish
+- Russian
+- Japanese
+
+### ➡️ [Download EU1KY Analyzer 2026 v2.01](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/tag/v2.01)
+
+The v2.01 release includes firmware, source code and multilingual documentation.
+
+### v2.01 visual identity
+
+<p align="center">
+  <img src="images/eu1ky-analyzer-2026-banner.png"
+       alt="EU1KY Analyzer 2026 v2.01"
+       width="800">
+</p>
+
+### Screenshots from v2.01
+
+<table>
+<tr>
+<td align="center">
+<b>Main menu</b><br>
+<img src="images/screenshots/01-main-menu-en.png" width="480">
+</td>
+
+<td align="center">
+<b>Single measurement</b><br>
+<img src="images/screenshots/02-single-measurement-en.png" width="480">
+</td>
+</tr>
+
+<tr>
+<td align="center">
+<b>Smith chart</b><br>
+<img src="images/screenshots/03-smith-chart-en.png" width="480">
+</td>
+
+<td align="center">
+<b>Metrology 2026 A/B comparison</b><br>
+<img src="images/screenshots/04-metrology-2026-ab-en.png" width="480">
+</td>
+</tr>
+</table>
+
+> **Note:** v2.01 is an older release and differs from v2.1 in interface design, available functions and language support. It is preserved for historical reference and for users who prefer the previous version.
+
+---
 
 ## Source code
 
