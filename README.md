@@ -8,12 +8,12 @@
 
 <p align="center">
   <b>Multilingual firmware for the EU1KY Antenna Analyzer</b><br>
-  STM32F746G-DISCO • PL / EN / DE / RU
+  STM32F746G-DISCO · Polish · English · German · Russian
 </p>
 
 EU1KY Analyzer 2026 is a continued development of the original EU1KY antenna analyzer firmware.
 
-The project introduces a redesigned graphical interface, expanded measurement and calibration functions, improved usability and multilingual support while remaining compatible with the established EU1KY hardware platform.
+Version 2.1 introduces a redesigned graphical interface, improved measurement presentation, calibration workflow improvements, additional diagnostic and utility functions, and a unified multilingual user interface.
 
 ---
 
@@ -21,73 +21,84 @@ The project introduces a redesigned graphical interface, expanded measurement an
 
 ### EU1KY Analyzer 2026 v2.1
 
-**Supported interface languages:**
+Supported interface languages:
 
 - 🇵🇱 Polish
 - 🇬🇧 English
 - 🇩🇪 German
 - 🇷🇺 Russian
 
-### ➡️ [Download EU1KY Analyzer 2026 v2.1](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
+### ➡️ [Download the latest release](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
 
-The current release provides:
+The release contains:
 
 - ready-to-flash `.bin` firmware
-- Intel HEX `.hex` firmware
-- complete source code
-- minimal source archive for offline use
+- Intel HEX `.hex` firmware image
+- complete source package
+- source code available directly in this repository
 
 ---
 
 ## Main features
 
-EU1KY Analyzer 2026 includes:
+EU1KY Analyzer 2026 includes, among others:
 
 - single-frequency impedance measurement
+- SWR, resistance and reactance measurements
 - SWR and impedance graphs
 - multi-band measurements
 - antenna tuning tools
 - Smith chart
 - S21 measurements
 - TDR cable measurements
-- LC measurements
+- RF component measurements
+- L, C and R measurements
+- quartz crystal measurement tools
 - frequency search
-- signal generator
+- RF signal generator
+- WSPR / FT8 signal generation
+- antenna design tools
 - OSL calibration
 - hardware calibration
 - S21 calibration
-- calibration status and verification
-- measurement data storage
+- calibration verification and status
+- battery monitoring and calibration
+- SD card file functions
 - USB functions
-- expanded diagnostics
+- hardware diagnostics
 - multilingual graphical interface
 
-Version 2.1 also introduces a redesigned and unified visual interface together with numerous usability and stability improvements.
+Version 2.1 also introduces a substantially redesigned visual interface with new icons, improved screen layout and a more consistent presentation throughout the firmware.
 
 ---
 
 ## Screenshots
 
+The screenshots below show the Polish interface of version 2.1.  
+The same menu structure and functions are available in English, German and Russian.
+
 <table>
 <tr>
 <td align="center">
 <b>Main menu</b><br>
-<img src="images/screenshots/01-main-menu-en.png" width="480">
+<img src="images/screenshots/01-main-menu-v21.png" width="480">
 </td>
+
 <td align="center">
-<b>Single measurement</b><br>
-<img src="images/screenshots/02-single-measurement-en.png" width="480">
+<b>Measurement menu</b><br>
+<img src="images/screenshots/02-measurement-menu-v21.png" width="480">
 </td>
 </tr>
 
 <tr>
 <td align="center">
-<b>Smith chart</b><br>
-<img src="images/screenshots/03-smith-chart-en.png" width="480">
+<b>SWR graph</b><br>
+<img src="images/screenshots/03-swr-graph-v21.png" width="480">
 </td>
+
 <td align="center">
-<b>Metrology 2026 A/B comparison</b><br>
-<img src="images/screenshots/04-metrology-2026-ab-en.png" width="480">
+<b>RF component measurement</b><br>
+<img src="images/screenshots/04-rf-components-v21.png" width="480">
 </td>
 </tr>
 </table>
@@ -96,11 +107,11 @@ Version 2.1 also introduces a redesigned and unified visual interface together w
 
 ## Firmware download
 
-The recommended way to obtain the firmware is through the GitHub Releases page:
+For normal use, download the current firmware from:
 
-### ➡️ [Latest Release](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
+### ➡️ [EU1KY Analyzer 2026 — Latest Release](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
 
-The current release contains:
+Version 2.1 provides:
 
 - `EU1KY_Analyzer_2026_v2.1.bin`
 - `EU1KY_Analyzer_2026_v2.1.hex`
@@ -108,11 +119,13 @@ The current release contains:
 
 For users who only want to install the firmware, the `.bin` file is normally the simplest choice.
 
+Previous firmware releases remain available in the **Releases** section.
+
 ---
 
 ## Source code
 
-The complete source code required to build the firmware is available directly in this repository.
+The source code required to build the firmware is included directly in this repository.
 
 Main directories:
 
@@ -123,15 +136,32 @@ Main directories:
 
 Build configuration files are located in the repository root.
 
+A separate source archive corresponding to the public firmware release is also available in the release assets.
+
 ---
 
 ## Documentation
 
 A new detailed user manual for **EU1KY Analyzer 2026 v2.1** is currently being prepared.
 
-The new documentation will describe the individual measurement, calibration and diagnostic functions step by step using actual screenshots captured directly from the analyzer.
+The new documentation will describe the individual functions step by step using actual screenshots captured from the analyzer.
 
-Documentation for older releases remains useful as reference material, but some menus, functions and screen layouts may differ from version 2.1.
+It will cover, among others:
+
+- first configuration
+- calibration
+- single-frequency measurements
+- SWR measurements
+- Smith chart
+- TDR
+- S21
+- RF component measurements
+- generator functions
+- antenna tools
+- diagnostics
+- configuration and service functions
+
+Documentation prepared for older firmware versions may differ from version 2.1 in menu structure, graphics and available functions.
 
 ---
 
@@ -143,19 +173,23 @@ EU1KY Analyzer 2026 is intended primarily for analyzers based on:
 - EU1KY RF front end
 - Si5351 frequency synthesizer
 
-Support for additional controls and diagnostic functions is also included.
+Actual usable frequency range and measurement performance depend on the individual hardware configuration, RF front end and calibration quality.
 
 ---
 
 ## Calibration notice
 
-Calibration data is specific to the individual analyzer hardware.
+Calibration data is specific to the individual analyzer and its RF measurement path.
 
-After installing new firmware, always verify the calibration status before performing precision measurements.
+After installing new firmware, verify the calibration status before performing precision measurements.
+
+Changing adapters, measurement cables or other elements between the calibration plane and the measured device may require a new calibration.
 
 A low SWR value does not by itself indicate antenna efficiency.
 
-Always observe RF safety precautions when working with antennas and connected transmitters.
+A 50 Ω resistive load can have an excellent SWR while radiating virtually no RF energy.
+
+Always observe RF and electrical safety precautions when working with antennas and connected transmitters.
 
 ---
 
@@ -170,17 +204,17 @@ Major contributors to earlier EU1KY development include:
 - **Ian Lee, KD8CEC**
 - other contributors to the EU1KY project
 
-EU1KY Analyzer 2026 does not claim authorship of the original analyzer design.
+EU1KY Analyzer 2026 does not claim authorship of the original EU1KY analyzer design.
 
 ---
 
-## This development
+## EU1KY Analyzer 2026 development
 
 Additional development, interface redesign, testing, translations and documentation:
 
 **Marek, SQ2KRR**
 
-Feedback from EU1KY users is very welcome, especially reports from different hardware versions.
+Testing reports, bug reports and suggestions are welcome, especially from users with different EU1KY hardware configurations.
 
 ---
 
