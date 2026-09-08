@@ -36,6 +36,8 @@ The release contains:
 - Intel HEX `.hex` firmware image
 - complete source package
 - source code available directly in this repository
+- Polish user manual — Part 1: Measurement
+- Russian user manual — Part 1: Measurement
 
 ---
 
@@ -116,12 +118,100 @@ Version 2.1 provides:
 - `EU1KY_Analyzer_2026_v2.1.bin`
 - `EU1KY_Analyzer_2026_v2.1.hex`
 - `EU1KY_Analyzer_2026_v2.1_sources.zip`
+- `EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf`
+- `EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf`
 
 For users who only want to install the firmware, the `.bin` file is normally the simplest choice.
 
 Previous firmware releases remain available in the **Releases** section.
 
 ---
+
+## Documentation
+
+The first part of the detailed user documentation for **EU1KY Analyzer 2026 v2.1** is now available.
+
+### Part 1 — Measurement
+
+This part describes the functions available in the **Measurement** section of the analyzer, including:
+
+- single-frequency impedance measurement
+- SWR and impedance sweeps
+- Smith chart
+- multi-band measurements
+- antenna tuning
+- RF component measurements
+- L/C and RLC analysis
+- Q-factor methods
+- quartz crystal measurement tools
+
+### Available manuals
+
+🇵🇱 **Polish — EU1KY-PL 2026 V2.1**
+
+➡️ [Download Part 1 — Measurement (PL)](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.1/EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf)
+
+🇷🇺 **Russian — EU1KY-RU 2026 V2.1**
+
+➡️ [Download Part 1 — Measurement (RU)](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.1/EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf)
+
+The same documents are also stored in the [`docs/`](docs/) directory of this repository.
+
+### Documentation status
+
+This is **not yet the complete manual** for all functions of EU1KY Analyzer 2026.
+
+The analyzer contains many additional functions that still need to be documented, including:
+
+- calibration and calibration management
+- TDR
+- S21
+- additional analysis functions
+- generator and digital signal functions
+- antenna design tools
+- files and SD card functions
+- settings
+- diagnostics
+- metrology and verification
+- service and hardware functions
+
+Further parts of the documentation will be prepared gradually.
+
+### Contributions are welcome
+
+Help with further documentation is welcome.
+
+In particular, contributions may include:
+
+- technical review and corrections
+- additional screenshots from different EU1KY hardware configurations
+- descriptions of functions and practical measurement procedures
+- verification of measurement behaviour
+- translations
+- preparation or review of further chapters
+
+If you use EU1KY and would like to contribute, please open an **Issue** in this repository or contact the project maintainer.
+
+Documentation prepared for older firmware versions may differ from version 2.1 in menu structure, graphics and available functions.
+
+---
+
+## Source code
+
+The source code required to build the firmware is included directly in this repository.
+
+Main directories:
+
+- `Src/` – firmware source code
+- `tools/` – build and verification tools
+- `firmware/` – compiled firmware files
+- `images/` – project graphics and screenshots
+- `docs/` – current user documentation
+
+Build configuration files are located in the repository root.
+
+A separate source archive corresponding to the public firmware release is also available in the release assets.
+
 ---
 
 ## Previous release — EU1KY Analyzer 2026 v2.01
@@ -194,48 +284,6 @@ The v2.01 release includes firmware, source code and multilingual documentation.
 
 ---
 
-## Source code
-
-The source code required to build the firmware is included directly in this repository.
-
-Main directories:
-
-- `Src/` – firmware source code
-- `tools/` – build and verification tools
-- `firmware/` – compiled firmware files
-- `images/` – project graphics and screenshots
-
-Build configuration files are located in the repository root.
-
-A separate source archive corresponding to the public firmware release is also available in the release assets.
-
----
-
-## Documentation
-
-A new detailed user manual for **EU1KY Analyzer 2026 v2.1** is currently being prepared.
-
-The new documentation will describe the individual functions step by step using actual screenshots captured from the analyzer.
-
-It will cover, among others:
-
-- first configuration
-- calibration
-- single-frequency measurements
-- SWR measurements
-- Smith chart
-- TDR
-- S21
-- RF component measurements
-- generator functions
-- antenna tools
-- diagnostics
-- configuration and service functions
-
-Documentation prepared for older firmware versions may differ from version 2.1 in menu structure, graphics and available functions.
-
----
-
 ## Hardware
 
 EU1KY Analyzer 2026 is intended primarily for analyzers based on:
@@ -286,6 +334,8 @@ Additional development, interface redesign, testing, translations and documentat
 **Marek, SQ2KRR**
 
 Testing reports, bug reports and suggestions are welcome, especially from users with different EU1KY hardware configurations.
+
+Help with further documentation, screenshots, technical review and translations is also welcome.
 
 ---
 
