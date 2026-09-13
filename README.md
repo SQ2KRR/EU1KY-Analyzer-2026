@@ -1,25 +1,19 @@
 # EU1KY Analyzer 2026
 
 <p align="center">
-  <img src="images/eu1ky_analyzer_2026_v2_1_banner.png"
-       alt="EU1KY Analyzer 2026 v2.1"
-       width="900">
-</p>
-
-<p align="center">
   <b>Multilingual firmware for the EU1KY Antenna Analyzer</b><br>
   STM32F746G-DISCO · Polish · English · German · Russian
 </p>
 
 EU1KY Analyzer 2026 is a continued development of the original EU1KY antenna analyzer firmware.
 
-Version 2.1 introduces a redesigned graphical interface, improved measurement presentation, calibration workflow improvements, additional diagnostic and utility functions, and a unified multilingual user interface.
+The project extends the original firmware with a redesigned graphical interface, expanded measurement functions, improved calibration workflows, additional diagnostics and a unified multilingual user interface.
 
 ---
 
 ## Current stable release
 
-### EU1KY Analyzer 2026 v2.1
+### EU1KY Analyzer 2026 v2.2
 
 Supported interface languages:
 
@@ -30,25 +24,40 @@ Supported interface languages:
 
 ### ➡️ [Download the latest release](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
 
-The release contains:
+The current release provides:
 
 - ready-to-flash `.bin` firmware
-- Intel HEX `.hex` firmware image
-- complete source package
-- source code available directly in this repository
-- Polish user manual — Part 1: Measurement
-- Russian user manual — Part 1: Measurement
+- complete source code in this repository
+- Polish technical documentation
+- previous releases preserved in the GitHub Releases section
 
-### Development documentation for V2.2
+For most users, the `.bin` file from the latest release is the simplest way to update the analyzer.
 
-Documentation for the next firmware generation is already being prepared.
+---
 
-The first published V2.2 chapter covers the expanded **S21 scalar transmission measurement system**.
+## What's new in V2.2
 
-➡️ [EU1KY-PL 2026 V2.2 — Chapter 6: S21](docs/EU1KY-PL_2026_V2.2_Instrukcja_Rozdzial_6_S21.pdf)
+Version 2.2 continues the development of the 2026 firmware branch and includes substantial improvements in measurement presentation and analysis.
 
-> **Note:** V2.2 is currently under development.  
-> The current stable firmware release remains V2.1.
+Major areas developed for V2.2 include:
+
+- expanded S21 scalar transmission measurements
+- improved S21 calibration workflow
+- extended S21 result pages
+- -3 dB bandwidth analysis
+- -6 / -10 / -20 / -40 / -60 dB bandwidth analysis
+- center frequency and Q calculation
+- selectivity and shape-factor information
+- passband ripple and asymmetry analysis
+- local maxima and resonance-dip information
+- measurement-quality and receiver-noise information
+- improved RF scanner
+- corrected RF scanner frequency calculation
+- improved RF spectrum presentation
+- improved user-interface consistency
+- additional diagnostic and measurement information
+
+The RF scanner frequency correction used in this release was verified on real hardware.
 
 ---
 
@@ -62,8 +71,10 @@ EU1KY Analyzer 2026 includes, among others:
 - multi-band measurements
 - antenna tuning tools
 - Smith chart
-- S21 measurements
+- S21 scalar transmission measurements
+- extended S21 result analysis
 - TDR cable measurements
+- RF scanner
 - RF component measurements
 - L, C and R measurements
 - quartz crystal measurement tools
@@ -81,41 +92,6 @@ EU1KY Analyzer 2026 includes, among others:
 - hardware diagnostics
 - multilingual graphical interface
 
-Version 2.1 also introduces a substantially redesigned visual interface with new icons, improved screen layout and a more consistent presentation throughout the firmware.
-
----
-
-## Screenshots
-
-The screenshots below show the Polish interface of version 2.1.  
-The same menu structure and functions are available in English, German and Russian.
-
-<table>
-<tr>
-<td align="center">
-<b>Main menu</b><br>
-<img src="images/screenshots/01-main-menu-v21.png" width="480">
-</td>
-
-<td align="center">
-<b>Measurement menu</b><br>
-<img src="images/screenshots/02-measurement-menu-v21.png" width="480">
-</td>
-</tr>
-
-<tr>
-<td align="center">
-<b>SWR graph</b><br>
-<img src="images/screenshots/03-swr-graph-v21.png" width="480">
-</td>
-
-<td align="center">
-<b>RF component measurement</b><br>
-<img src="images/screenshots/04-rf-components-v21.png" width="480">
-</td>
-</tr>
-</table>
-
 ---
 
 ## Firmware download
@@ -124,15 +100,11 @@ For normal use, download the current firmware from:
 
 ### ➡️ [EU1KY Analyzer 2026 — Latest Release](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/latest)
 
-Version 2.1 provides:
+Current firmware:
 
-- `EU1KY_Analyzer_2026_v2.1.bin`
-- `EU1KY_Analyzer_2026_v2.1.hex`
-- `EU1KY_Analyzer_2026_v2.1_sources.zip`
-- `EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf`
-- `EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf`
+`EU1KY-PL_2026_V2.2.bin`
 
-For users who only want to install the firmware, the `.bin` file is normally the simplest choice.
+The source code corresponding to V2.2 is available directly in this repository and through the source archives automatically generated by GitHub for the `v2.2` tag.
 
 Previous firmware releases remain available in the **Releases** section.
 
@@ -142,41 +114,13 @@ Previous firmware releases remain available in the **Releases** section.
 
 User documentation for EU1KY Analyzer 2026 is being developed progressively.
 
-The currently published documentation includes material for the stable **V2.1** release as well as new, substantially expanded chapters being prepared for **V2.2**.
+Documentation currently available in the repository includes material for both the earlier V2.1 firmware and the current V2.2 generation.
 
-### EU1KY Analyzer 2026 V2.1
-
-#### Part 1 — Measurement
-
-The V2.1 Measurement manual describes:
-
-- single-frequency impedance measurement
-- SWR and impedance sweeps
-- Smith chart
-- multi-band measurements
-- antenna tuning
-- RF component measurements
-- L/C and RLC analysis
-- Q-factor methods
-- quartz crystal measurement tools
-
-### Available V2.1 manuals
-
-🇵🇱 **Polish — EU1KY-PL 2026 V2.1**
-
-➡️ [Part 1 — Measurement](docs/EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf)
-
-🇷🇺 **Russian — EU1KY-RU 2026 V2.1**
-
-➡️ [Part 1 — Measurement](docs/EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf)
-
----
-
-### EU1KY Analyzer 2026 V2.2 — documentation in development
+### EU1KY Analyzer 2026 V2.2
 
 #### Chapter 6 — S21 scalar transmission
 
-A new and substantially expanded Polish-language chapter for V2.2 is now available.
+A substantially expanded Polish-language chapter describes the S21 measurement system implemented in V2.2.
 
 It covers:
 
@@ -188,7 +132,7 @@ It covers:
 - measurement range and frequency step
 - sampling density
 - manual and Auto measurement modes
-- interpretation of all eight result pages
+- interpretation of result pages
 - maximum, minimum and trace dynamic range
 - -3 dB bandwidth
 - -6 / -10 / -20 / -40 / -60 dB bandwidths
@@ -201,11 +145,9 @@ It covers:
 - receiver noise floor and measurement quality
 - calibration status and measurement conditions
 - practical LC filter measurements
-- comparison of the filter before and after adding an additional capacitor
-- ceramic filter theory, history and measurement
-- quartz filter theory, history and measurement
+- ceramic filter theory and measurements
+- quartz filter theory and measurements
 - Butterworth–Van Dyke resonator model
-- history of quartz resonator development
 - influence of source and load impedance
 - practical interpretation of real S21 measurements
 
@@ -213,16 +155,31 @@ It covers:
 
 ➡️ [Download Chapter 6 — S21: Scalar Transmission](docs/EU1KY-PL_2026_V2.2_Instrukcja_Rozdzial_6_S21.pdf)
 
-> **Important:** This chapter documents the developing V2.2 firmware and may describe functions or interface details not present in the current stable V2.1 release.
+---
 
-All currently published manuals are also available in the [`docs/`](docs/) directory.
+### Earlier V2.1 documentation
 
-### Documentation status
+The V2.1 Measurement manual remains available because much of the basic measurement workflow is still useful as reference material.
 
-The documentation is not yet complete.
+🇵🇱 **Polish**
 
-Further chapters are planned for:
+➡️ [Part 1 — Measurement](docs/EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf)
 
+🇷🇺 **Russian**
+
+➡️ [Part 1 — Measurement](docs/EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf)
+
+All currently published manuals are available in the [`docs/`](docs/) directory.
+
+---
+
+## Documentation status
+
+The documentation is still being expanded.
+
+Further material is planned or being prepared for:
+
+- RF scanner
 - calibration and calibration management
 - TDR and cable analysis
 - generator and digital signal functions
@@ -233,24 +190,7 @@ Further chapters are planned for:
 - metrology and verification
 - service and hardware functions
 
-Additional V2.2 chapters and language versions will be published progressively.
-
-### Contributions are welcome
-
-Help with further documentation is welcome.
-
-Contributions may include:
-
-- technical review and corrections
-- screenshots from different EU1KY hardware configurations
-- descriptions of functions and practical measurement procedures
-- verification of measurement behaviour
-- translations
-- preparation or review of further chapters
-
-If you use EU1KY and would like to contribute, please open an **Issue** in this repository or contact the project maintainer.
-
-Documentation prepared for different firmware versions may differ in menu structure, graphics and available functions.
+Additional chapters and language versions will be published progressively.
 
 ---
 
@@ -260,85 +200,39 @@ The source code required to build the firmware is included directly in this repo
 
 Main directories:
 
-- `Src/` – firmware source code
-- `tools/` – build and verification tools
-- `firmware/` – compiled firmware files
-- `images/` – project graphics and screenshots
-- `docs/` – current user documentation
+- `Src/` — firmware source code
+- `tools/` — build and verification tools
+- `firmware/` — compiled firmware files
+- `images/` — project graphics and screenshots
+- `docs/` — user documentation
 
 Build configuration files are located in the repository root.
 
-A separate source archive corresponding to the public firmware release is also available in the release assets.
+The GitHub tag corresponding to the current release is:
+
+`v2.2`
+
+This allows the exact source revision used for the public firmware release to be identified.
 
 ---
 
-## Previous release — EU1KY Analyzer 2026 v2.01
+## Previous releases
 
-Version **v2.01** is preserved as the previous complete release of EU1KY Analyzer 2026.
+Earlier firmware versions remain available for historical reference and for users who prefer previous configurations.
 
-It uses the earlier graphical interface and is still available for users who prefer that version or require the additional translations and manuals prepared for it.
+### EU1KY Analyzer 2026 v2.1
+
+Version 2.1 introduced the redesigned 2026 graphical interface and formed the basis for the current V2.2 development.
+
+Previous V2.1 firmware and documentation remain available through the repository history and Releases section.
 
 ### EU1KY Analyzer 2026 v2.01
 
-**Interface languages:**
+Version v2.01 is preserved as an earlier complete release.
 
-- 🇵🇱 Polish
-- 🇬🇧 English
-- 🇩🇪 German
-- 🇪🇸 Spanish
-- 🇷🇺 Russian
-- 🇯🇵 Japanese
-
-**User manuals available for this release:**
-
-- Polish
-- English
-- German
-- Spanish
-- Russian
-- Japanese
+It used the previous graphical interface and supported additional language versions.
 
 ### ➡️ [Download EU1KY Analyzer 2026 v2.01](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/tag/v2.01)
-
-The v2.01 release includes firmware, source code and multilingual documentation.
-
-### v2.01 visual identity
-
-<p align="center">
-  <img src="images/eu1ky-analyzer-2026-banner.png"
-       alt="EU1KY Analyzer 2026 v2.01"
-       width="800">
-</p>
-
-### Screenshots from v2.01
-
-<table>
-<tr>
-<td align="center">
-<b>Main menu</b><br>
-<img src="images/screenshots/01-main-menu-en.png" width="480">
-</td>
-
-<td align="center">
-<b>Single measurement</b><br>
-<img src="images/screenshots/02-single-measurement-en.png" width="480">
-</td>
-</tr>
-
-<tr>
-<td align="center">
-<b>Smith chart</b><br>
-<img src="images/screenshots/03-smith-chart-en.png" width="480">
-</td>
-
-<td align="center">
-<b>Metrology 2026 A/B comparison</b><br>
-<img src="images/screenshots/04-metrology-2026-ab-en.png" width="480">
-</td>
-</tr>
-</table>
-
-> **Note:** v2.01 is an older release and differs from v2.1 in interface design, available functions and language support. It is preserved for historical reference and for users who prefer the previous version.
 
 ---
 
@@ -351,6 +245,8 @@ EU1KY Analyzer 2026 is intended primarily for analyzers based on:
 - Si5351 frequency synthesizer
 
 Actual usable frequency range and measurement performance depend on the individual hardware configuration, RF front end and calibration quality.
+
+Different EU1KY hardware revisions may have different measurement limits and available functions.
 
 ---
 
@@ -394,6 +290,22 @@ Additional development, interface redesign, testing, translations and documentat
 Testing reports, bug reports and suggestions are welcome, especially from users with different EU1KY hardware configurations.
 
 Help with further documentation, screenshots, technical review and translations is also welcome.
+
+---
+
+## Contributions
+
+Contributions may include:
+
+- technical review and corrections
+- bug reports
+- measurement verification
+- screenshots from different EU1KY hardware configurations
+- documentation
+- translations
+- source-code improvements
+
+Please use the **Issues** section of this repository for reports and suggestions.
 
 ---
 
