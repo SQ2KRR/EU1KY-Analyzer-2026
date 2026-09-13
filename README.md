@@ -39,6 +39,17 @@ The release contains:
 - Polish user manual — Part 1: Measurement
 - Russian user manual — Part 1: Measurement
 
+### Development documentation for V2.2
+
+Documentation for the next firmware generation is already being prepared.
+
+The first published V2.2 chapter covers the expanded **S21 scalar transmission measurement system**.
+
+➡️ [EU1KY-PL 2026 V2.2 — Chapter 6: S21](docs/EU1KY-PL_2026_V2.2_Instrukcja_Rozdzial_6_S21.pdf)
+
+> **Note:** V2.2 is currently under development.  
+> The current stable firmware release remains V2.1.
+
 ---
 
 ## Main features
@@ -129,11 +140,15 @@ Previous firmware releases remain available in the **Releases** section.
 
 ## Documentation
 
-The first part of the detailed user documentation for **EU1KY Analyzer 2026 v2.1** is now available.
+User documentation for EU1KY Analyzer 2026 is being developed progressively.
 
-### Part 1 — Measurement
+The currently published documentation includes material for the stable **V2.1** release as well as new, substantially expanded chapters being prepared for **V2.2**.
 
-This part describes the functions available in the **Measurement** section of the analyzer, including:
+### EU1KY Analyzer 2026 V2.1
+
+#### Part 1 — Measurement
+
+The V2.1 Measurement manual describes:
 
 - single-frequency impedance measurement
 - SWR and impedance sweeps
@@ -145,28 +160,71 @@ This part describes the functions available in the **Measurement** section of th
 - Q-factor methods
 - quartz crystal measurement tools
 
-### Available manuals
+### Available V2.1 manuals
 
 🇵🇱 **Polish — EU1KY-PL 2026 V2.1**
 
-➡️ [Download Part 1 — Measurement (PL)](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.1/EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf)
+➡️ [Part 1 — Measurement](docs/EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf)
 
 🇷🇺 **Russian — EU1KY-RU 2026 V2.1**
 
-➡️ [Download Part 1 — Measurement (RU)](https://github.com/SQ2KRR/EU1KY-Analyzer-2026/releases/download/v2.1/EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf)
+➡️ [Part 1 — Measurement](docs/EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf)
 
-The same documents are also stored in the [`docs/`](docs/) directory of this repository.
+---
+
+### EU1KY Analyzer 2026 V2.2 — documentation in development
+
+#### Chapter 6 — S21 scalar transmission
+
+A new and substantially expanded Polish-language chapter for V2.2 is now available.
+
+It covers:
+
+- four-terminal network theory and S-parameters
+- scalar S21 transmission measurement
+- meaning of S11, S21, S12 and S22
+- S21 calibration
+- construction and use of a 40 dB / 50 Ω calibration attenuator
+- measurement range and frequency step
+- sampling density
+- manual and Auto measurement modes
+- interpretation of all eight result pages
+- maximum, minimum and trace dynamic range
+- -3 dB bandwidth
+- -6 / -10 / -20 / -40 / -60 dB bandwidths
+- center frequency and Q factor
+- selectivity and shape factor
+- passband ripple
+- asymmetry and slope measurements
+- local maxima P1/P2
+- the dip between resonances
+- receiver noise floor and measurement quality
+- calibration status and measurement conditions
+- practical LC filter measurements
+- comparison of the filter before and after adding an additional capacitor
+- ceramic filter theory, history and measurement
+- quartz filter theory, history and measurement
+- Butterworth–Van Dyke resonator model
+- history of quartz resonator development
+- influence of source and load impedance
+- practical interpretation of real S21 measurements
+
+🇵🇱 **Polish — EU1KY-PL 2026 V2.2**
+
+➡️ [Download Chapter 6 — S21: Scalar Transmission](docs/EU1KY-PL_2026_V2.2_Instrukcja_Rozdzial_6_S21.pdf)
+
+> **Important:** This chapter documents the developing V2.2 firmware and may describe functions or interface details not present in the current stable V2.1 release.
+
+All currently published manuals are also available in the [`docs/`](docs/) directory.
 
 ### Documentation status
 
-This is **not yet the complete manual** for all functions of EU1KY Analyzer 2026.
+The documentation is not yet complete.
 
-The analyzer contains many additional functions that still need to be documented, including:
+Further chapters are planned for:
 
 - calibration and calibration management
-- TDR
-- S21
-- additional analysis functions
+- TDR and cable analysis
 - generator and digital signal functions
 - antenna design tools
 - files and SD card functions
@@ -175,16 +233,16 @@ The analyzer contains many additional functions that still need to be documented
 - metrology and verification
 - service and hardware functions
 
-Further parts of the documentation will be prepared gradually.
+Additional V2.2 chapters and language versions will be published progressively.
 
 ### Contributions are welcome
 
 Help with further documentation is welcome.
 
-In particular, contributions may include:
+Contributions may include:
 
 - technical review and corrections
-- additional screenshots from different EU1KY hardware configurations
+- screenshots from different EU1KY hardware configurations
 - descriptions of functions and practical measurement procedures
 - verification of measurement behaviour
 - translations
@@ -192,7 +250,7 @@ In particular, contributions may include:
 
 If you use EU1KY and would like to contribute, please open an **Issue** in this repository or contact the project maintainer.
 
-Documentation prepared for older firmware versions may differ from version 2.1 in menu structure, graphics and available functions.
+Documentation prepared for different firmware versions may differ in menu structure, graphics and available functions.
 
 ---
 
