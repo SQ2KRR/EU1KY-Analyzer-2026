@@ -158,7 +158,17 @@ It covers:
 
 🇵🇱 **Polish — EU1KY-PL 2026 V2.2**
 
-➡️ [Download Chapter 6 — S21: Scalar Transmission](docs/EU1KY-PL_2026_V2.2_Instrukcja_Rozdzial_6_S21.pdf)
+### EU1KY Analyzer 2026 V2.2
+
+#### Chapters 6–7 — Analysis
+
+The current Polish-language documentation combines Chapters 6 and 7 of the **Analysis** section into a single PDF.
+
+It contains the expanded technical documentation for the analysis functions developed for the V2.2 firmware, including S21 measurement and the following analysis chapter.
+
+🇵🇱 **Polish — EU1KY-PL 2026 V2.2**
+
+➡️ [Download Chapters 6–7 — Analysis](docs/EU1KY-PL_2026_V2.2_ANALIZA_Rozdzialy_6-7.pdf)
 
 ---
 
