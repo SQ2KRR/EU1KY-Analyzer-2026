@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="images/EU1KY_Analyzer_2026_v2.2.png"
+       alt="EU1KY Analyzer 2026 v2.2"
+       width="100%">
+</p>
 # EU1KY Analyzer 2026
 
 <p align="center">
