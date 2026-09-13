@@ -3,7 +3,7 @@
        alt="EU1KY Analyzer 2026 v2.2"
        width="100%">
 </p>
-# EU1KY Analyzer 2026
+<h1>EU1KY Analyzer 2026</h1>
 
 <p align="center">
   <b>Multilingual firmware for the EU1KY Antenna Analyzer</b><br>
