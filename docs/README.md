@@ -9,6 +9,7 @@ The remaining sections of the analyzer will be documented gradually. Contributio
 ### Manuals
 
 - 🇵🇱 [EU1KY-PL 2026 V2.1 — Part 1: Measurement](EU1KY-PL_2026_V2.1_Manual_Part_1_Measurement.pdf)
+- 🇵🇱 [EU1KY-PL 2026 V2.2 — Rozdział 6: S21 — transmisja skalarna](EU1KY-PL_2026_V2.2_Instrukcja_Rozdzial_6_S21.pdf)
 - 🇷🇺 [EU1KY-RU 2026 V2.1 — Part 1: Measurement](EU1KY-RU_2026_V2.1_Manual_Part_1_Measurement.pdf)
 
 ### Status
