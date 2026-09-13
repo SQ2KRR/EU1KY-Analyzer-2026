@@ -52,6 +52,7 @@
     [TEKST_MENU_WIELE_PASM] = "SWR по диапазонам",
     [TEKST_MENU_STROJENIE] = "Настройка SWR",
     [TEKST_MENU_S21] = "S21",
+    [TEKST_ANALIZA_FILTRU] = "Анализ фильтра",
     [TEKST_MENU_SZUKAJ_F] = "ВЧ-сканер",
     [TEKST_MENU_KWARC] = "Кварц",
     [TEKST_MENU_TDR] = "TDR / кабель",
@@ -409,7 +410,7 @@
     [TEKST_WKLAD_AUTOR_PROJEKTU] = "автор исходного проекта и прошивки",
     [TEKST_WKLAD_ROZWOJ_FIRMWARE] = "развитие прошивки и измерений",
     [TEKST_WKLAD_ROZSZERZENIA_CEC] = "CEC: L/C, S21 и цифровые режимы",
-    [TEKST_WKLAD_EU1KY_PL] = "ветка PL: концепция, тесты и развитие",
+    [TEKST_WKLAD_EU1KY_PL] = "ветка PL: интеграция и развитие",
     [TEKST_WKLAD_DOKUMENTACJA] = "руководства и документация сообщества",
     [TEKST_O_PROGRAMIE_DZIEKUJEMY] = "Спасибо всем, кто развивал и тестировал этот анализатор.",
     [TEKST_NIEMIECKI] = "Deutsch",
@@ -419,7 +420,7 @@
 
     [TEKST_PODTYTUL_ANALIZATOR_ANTENOWY] = "Анализатор антенн",
     [TEKST_PRZYGOTOWANIE_FUNKCJI] = "Подготовка функции...",
-    [TEKST_METROLOGIA_2026_TEST] = "Метрология 2026 - ТЕСТ",
+    [TEKST_METROLOGIA_2026_TEST] = "Метрология 2026",
 
 /* Launcher UX 2026 - v2.03-test22. */
     [TEKST_DZIAL_POMIAR] = "Измерение",
@@ -445,3 +446,6 @@
     [TEKST_POZIOM_FUNKCJI] = "Уровень функций",
     [TEKST_KONFIGURACJA_ZAAWANSOWANA] = "Расширенная конфигурация",
     [TEKST_STYL_INTERFEJSU] = "Стиль интерфейса",
+
+    [TEKST_PRZYCISK_ENKODERA] = "Кнопка энкодера: снимок",
+    [TEKST_USTAWIENIA_S21] = "Параметры измерения S21",

@@ -64,6 +64,11 @@ static DSP_RX mZ = DSP_Z0 + 0.0fi;
 static int ostatni_pomiar_poprawny = 1;
 static int ostatni_pomiar_track_poprawny = 0;
 static float ostatni_track_poziom = 0.0f;
+static float ostatni_track_v_mv = NAN;
+static float ostatni_track_i_mv = NAN;
+static float ostatni_track_rozrzut_i_proc = NAN;
+static float ostatni_track_rozrzut_v_proc = NAN;
+static uint8_t diagnostyka_track_dwa_kanaly = 0U;
 static float ostatnia_stabilnosc_fazy = 1.0f;
 static float ostatni_rozrzut_v_proc = 0.0f;
 static float ostatni_rozrzut_i_proc = 0.0f;
@@ -740,6 +745,7 @@ REMEASURE:
 float DSP_MeasureTrack(uint32_t freqHz, int applyErrCorr, int applyOSL, int nMeasurements)
 {
     float mag_i = 0.0f;
+    float mag_v = NAN;
     float complex res_i;
     int i;
 
@@ -747,11 +753,16 @@ float DSP_MeasureTrack(uint32_t freqHz, int applyErrCorr, int applyOSL, int nMea
     (void)applyOSL;
     ostatni_pomiar_track_poprawny = 0;
     ostatni_track_poziom = 0.0f;
+    ostatni_track_i_mv = NAN;
+    ostatni_track_v_mv = NAN;
+    ostatni_track_rozrzut_i_proc = NAN;
+    ostatni_track_rozrzut_v_proc = NAN;
 
     /*
-     * Tor S21 jest pomiarem skalarnym: pobieramy amplitudę jednego kanału
-     * odbiorczego. Nie wyznaczamy fazy S21, więc wynik nie może być
-     * przedstawiany jako pełny zespolony parametr rozproszenia.
+     * Tor S21 jest pomiarem skalarnym i do wyniku wykorzystuje kanal I.
+     * Drugi kanal V liczymy tylko w trybie diagnostycznym. Nie bierze on
+     * udzialu w kalibracji ani w obliczeniu S21, ale pomaga odroznic brak
+     * sygnalu od problemu jednego wejscia analogowego.
      */
     if (freqHz < CFG_GetParam(CFG_PARAM_BAND_FMIN) ||
         freqHz > CFG_GetParam(CFG_PARAM_BAND_FMAX) ||
@@ -767,22 +778,33 @@ float DSP_MeasureTrack(uint32_t freqHz, int applyErrCorr, int applyOSL, int nMea
     HS_SetPower(2, CLK2_drive, 1); // CLK2: 2 mA .. 8 mA
     memset(audioBuf, 0, sizeof(audioBuf));
 
-    /*
-     * Stary kod wykonywał nMeasurements+1 próbek (<=), a do filtra
-     * przekazywał tylko nMeasurements. Dla MAXNMEAS=20 zapisywał też
-     * element 20 poza końcem tablicy [0..19]. Mierzymy dokładnie tyle
-     * próbek, ile później filtrujemy.
-     */
     for (i = 0; i < nMeasurements; i++)
     {
         DSP_Sample();
         res_i = DSP_FFT(0);
         mag_i_buf[i] = crealf(res_i);
+
+        if (diagnostyka_track_dwa_kanaly)
+        {
+            const float complex res_v = DSP_FFT(1);
+            mag_v_buf[i] = crealf(res_v);
+        }
     }
 
     mag_i = DSP_FilterAmplitudeRobust(mag_i_buf, nMeasurements);
+    ostatni_track_rozrzut_i_proc = DSP_RozrzutWzglednyProc(mag_i_buf, nMeasurements);
     if (!isfinite(mag_i) || mag_i <= 0.0f)
         return NAN;
+
+    ostatni_track_i_mv = mag_i * MCF;
+
+    if (diagnostyka_track_dwa_kanaly)
+    {
+        mag_v = DSP_FilterAmplitudeRobust(mag_v_buf, nMeasurements);
+        ostatni_track_rozrzut_v_proc = DSP_RozrzutWzglednyProc(mag_v_buf, nMeasurements);
+        if (isfinite(mag_v) && mag_v > 0.0f)
+            ostatni_track_v_mv = mag_v * MCF;
+    }
 
     ostatni_track_poziom = mag_i;
     ostatni_pomiar_track_poprawny = 1;
@@ -797,6 +819,86 @@ int DSP_CzyOstatniPomiarTrackPoprawny(void)
 float DSP_OstatniPoziomTrack(void)
 {
     return ostatni_track_poziom;
+}
+
+void DSP_UstawDiagnostykeTrack(uint8_t wlaczona)
+{
+    diagnostyka_track_dwa_kanaly = wlaczona ? 1U : 0U;
+}
+
+float DSP_OstatniTrackVmv(void)
+{
+    return ostatni_track_v_mv;
+}
+
+float DSP_OstatniTrackImv(void)
+{
+    return ostatni_track_i_mv;
+}
+
+float DSP_TrackPoziomNaMv(float poziom)
+{
+    if (!isfinite(poziom))
+        return NAN;
+    return poziom * MCF;
+}
+
+float DSP_OstatniTrackRozrzutIProc(void)
+{
+    return ostatni_track_rozrzut_i_proc;
+}
+
+float DSP_OstatniTrackRozrzutVProc(void)
+{
+    return ostatni_track_rozrzut_v_proc;
+}
+
+/*
+ * Pomiar tła odbiornika S21 przy wyłączonym CLK2.
+ *
+ * Najpierw ustawiamy LO dla żądanej częstotliwości przez zwykły tor S21,
+ * następnie wyłączamy wyłącznie wyjście TX. GEN_SetTXFreq(0) pozostawia LO
+ * na ostatniej częstotliwości, więc FFT nadal obserwuje ten sam punkt pasma.
+ * Funkcja nie nadpisuje diagnostycznych V/I ostatniego właściwego pomiaru.
+ */
+float DSP_MeasureTrackTlo(uint32_t freqHz, int nMeasurements, float *rozrzut_i_proc)
+{
+    float mag_i;
+    int i;
+
+    if (rozrzut_i_proc != 0)
+        *rozrzut_i_proc = NAN;
+
+    if (freqHz < CFG_GetParam(CFG_PARAM_BAND_FMIN) ||
+        freqHz > CFG_GetParam(CFG_PARAM_BAND_FMAX) ||
+        !GEN_CzyCzestotliwoscObslugiwana(freqHz))
+        return NAN;
+
+    if (nMeasurements < 1)
+        nMeasurements = 1;
+    if (nMeasurements > MAXNMEAS)
+        nMeasurements = MAXNMEAS;
+
+    GEN_SetTXFreq(freqHz);
+    Sleep(1U);
+    GEN_SetTXFreq(0U);
+    memset(audioBuf, 0, sizeof(audioBuf));
+
+    for (i = 0; i < nMeasurements; ++i)
+    {
+        float complex res_i;
+        DSP_Sample();
+        res_i = DSP_FFT(0);
+        mag_i_buf[i] = crealf(res_i);
+    }
+
+    mag_i = DSP_FilterAmplitudeRobust(mag_i_buf, nMeasurements);
+    if (rozrzut_i_proc != 0)
+        *rozrzut_i_proc = DSP_RozrzutWzglednyProc(mag_i_buf, nMeasurements);
+
+    if (!isfinite(mag_i) || mag_i <= 0.0f)
+        return NAN;
+    return mag_i;
 }
 
 // END OF KD8CEC's LOGIC

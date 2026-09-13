@@ -1506,31 +1506,15 @@ bool UI_CzyPunktWObszarze(LCDPoint punkt, const UI_PROSTOKAT_t *obszar)
            (uint32_t)punkt.y >= obszar->y && (uint32_t)punkt.y < dolny;
 }
 
-static bool UI_CzyKontrolkaWstecz(const UI_KONTROLKA_t *kontrolka)
-{
-    const char *tekst;
-    if (kontrolka == 0 || kontrolka->styl != UI_STYL_POWROT)
-        return false;
-    tekst = kontrolka->tekst;
-    if (tekst == 0)
-        return false;
-
-    /*
-     * Stare moduły przechowują podpis Wstecz zarówno przez tablicę języka,
-     * jak i jako literał. Rozpoznanie jest celowo w warstwie wspólnej, aby
-     * obraz i hit-test zawsze używały tej samej geometrii 0,220,70,45.
-     */
-    if (strcmp(tekst, JEZYK_Tekst(TEKST_WSTECZ)) == 0)
-        return true;
-    return strcmp(tekst, "Wstecz") == 0 || strcmp(tekst, "Back") == 0 ||
-           strcmp(tekst, "Zurück") == 0 || strcmp(tekst, "Zurueck") == 0 ||
-           strcmp(tekst, "Назад") == 0 || strcmp(tekst, "Exit") == 0;
-}
-
 static UI_PROSTOKAT_t UI_ObszarKontrolkiUjednolicony(const UI_KONTROLKA_t *kontrolka)
 {
-    if (UI_CzyKontrolkaWstecz(kontrolka))
-        return UI_ObszarWsteczDolny();
+    /*
+     * Geometria wpisana do kontrolki jest nadrzędna. Ekrany korzystające ze
+     * standardowego dolnego Wstecz nadal dostają jego wymiary przez
+     * UI_ObszarWsteczDolny()/UI_RysujWsteczDolny(), natomiast ekrany z własnym
+     * paskiem akcji (np. S21) nie są już na siłę rozciągane do 70 x 45 px.
+     * To usuwa nachodzenie Wstecz na wynik pomiaru i zapewnia identyczny hit-test.
+     */
     return kontrolka != 0 ? kontrolka->obszar : (UI_PROSTOKAT_t){0U, 0U, 0U, 0U};
 }
 
@@ -1599,6 +1583,14 @@ void UI_RysujKontrolke(const UI_KONTROLKA_t *kontrolka)
 
         UI_RysujTekstWielowierszowy(x, y, szerokosc, wysokosc, kontrolka->tekst,
                                     UI_FontDlaRoli(kontrolka->rola_tekstu), tekst_kolor, tlo);
+
+        /*
+         * Wybrana opcja dostaje małą zieloną kontrolkę w stylu klasycznego
+         * sprzętu pomiarowego/Hi-Fi. Nie dublujemy jej na małych przyciskach
+         * krokowych; pojawia się tylko tam, gdzie jest wystarczająco dużo miejsca.
+         */
+        if (kontrolka->zaznaczona && szerokosc >= 56U && wysokosc >= 28U)
+            UI_RysujKontrolkeStanuKafla(&obszar, true);
     }
 }
 

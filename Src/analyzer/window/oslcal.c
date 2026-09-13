@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "config.h"
 #include "gen.h"
 #include "LCD.h"
@@ -22,11 +23,13 @@
 #include "komunikaty.h"
 #include "jezyk.h"
 #include "ui_wspolny.h"
+#include "ui_edytor_liczby.h"
 #include "wejscia_uzytkownika.h"
 #include "ff.h"
 #include "wersja_projektu.h"
 #include "sprawdzenie_if.h"
 #include "zworka_cal.h"
+#include "dsp.h"
 
 extern void Sleep(uint32_t);
 
@@ -80,13 +83,101 @@ void progress_cb(uint32_t new_percent)
 static int progval, indextb;
 static char progTxt[20];
 
+/* Bieżąca wartość wzorca jest potrzebna również w podglądzie kalibracji. */
+static uint32_t s21_tlumik_poczatkowy_x100 = 4000U;
+static uint32_t s21_tlumik_roboczy_x100 = 4000U;
+
+/* Bieżąca wartość wzorca musi być dostępna również dla podglądu diagnostyki. */
+static void S21_RysujPoziomyBiezace(void)
+{
+    OSL_S21_DIAGNOSTYKA_t diagnostyka;
+    char tekst[128];
+    char tekst2[128];
+    char v_txt[24];
+    char i_txt[24];
+    char n_txt[24];
+
+    OSL_S21_PobierzDiagnostyke(&diagnostyka);
+    LCD_FillRect(LCD_MakePoint(14U, 82U), LCD_MakePoint(466U, 105U), UI_KolorTlaPola());
+
+    if (isfinite(diagnostyka.napiecie_v_mv))
+        snprintf(v_txt, sizeof(v_txt), "%.3f", (double)diagnostyka.napiecie_v_mv);
+    else
+        snprintf(v_txt, sizeof(v_txt), "--");
+
+    if (isfinite(diagnostyka.napiecie_i_mv))
+        snprintf(i_txt, sizeof(i_txt), "%.3f", (double)diagnostyka.napiecie_i_mv);
+    else
+        snprintf(i_txt, sizeof(i_txt), "--");
+
+    if (isfinite(diagnostyka.tlo_i_mv))
+        snprintf(n_txt, sizeof(n_txt), "%.3f", (double)diagnostyka.tlo_i_mv);
+    else
+        snprintf(n_txt, sizeof(n_txt), "--");
+
+    if (diagnostyka.czestotliwosc_hz == 0U)
+        snprintf(tekst, sizeof(tekst), "f:--  V:%s I:%s N:%s mV  %s:--",
+                 v_txt, i_txt, n_txt,
+                 JEZYK_Wybierz("Jak", "Qual", "Qual", "Кач"));
+    else if (diagnostyka.pewnosc_proc > 0U)
+        snprintf(tekst, sizeof(tekst), "f:%.3f  V:%s I:%s N:%s mV  %s:%u%%",
+                 (double)diagnostyka.czestotliwosc_hz / 1000000.0, v_txt, i_txt, n_txt,
+                 JEZYK_Wybierz("Jak", "Qual", "Qual", "Кач"),
+                 (unsigned int)diagnostyka.pewnosc_proc);
+    else
+        snprintf(tekst, sizeof(tekst), "f:%.3f  V:%s I:%s N:%s mV  %s:--",
+                 (double)diagnostyka.czestotliwosc_hz / 1000000.0, v_txt, i_txt, n_txt,
+                 JEZYK_Wybierz("Jak", "Qual", "Qual", "Кач"));
+
+    FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_NIEAKTYWNY), UI_KolorTlaPola(),
+               18U, 84U, tekst);
+
+    /*
+     * Po kroku z tłumikiem wykorzystujemy oba surowe poziomy także jako
+     * natychmiastową kontrolę liniowości. Nie zmienia to kalibracji; użytkownik
+     * widzi jedynie, czy zmierzona separacja odpowiada znanemu wzorcowi.
+     */
+    tekst2[0] = '\0';
+    if (isfinite(diagnostyka.poziom_bez_tlumika) &&
+        isfinite(diagnostyka.poziom_z_tlumikiem) &&
+        diagnostyka.poziom_bez_tlumika > diagnostyka.poziom_z_tlumikiem &&
+        diagnostyka.poziom_z_tlumikiem > 0.0f)
+    {
+        const float wzorzec_db = (float)s21_tlumik_roboczy_x100 / 100.0f;
+        const float zmierzone_db =
+            10.0f * log10f(diagnostyka.poziom_bez_tlumika /
+                           diagnostyka.poziom_z_tlumikiem);
+        const float blad_db = zmierzone_db - wzorzec_db;
+
+        snprintf(tekst2, sizeof(tekst2),
+                 "%s %.2f dB  %s %.2f dB  d:%+.2f dB",
+                 JEZYK_Wybierz("Wz", "Ref", "Ref", "Эт"),
+                 (double)wzorzec_db,
+                 JEZYK_Wybierz("zm", "meas", "gem", "изм"),
+                 (double)zmierzone_db,
+                 (double)blad_db);
+    }
+
+    if (tekst2[0] != '\0')
+        FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_AKCENT), UI_KolorTlaPola(),
+                   18U, 96U, tekst2);
+}
+
 void S21progress_cb(uint32_t new_percent)
 {
-    if (new_percent == progval || new_percent > 100)
+    if (new_percent > 100U)
         return;
-    progval = new_percent;
-    sprintf(progTxt, "%u%%", (unsigned int)progval);
-    TEXTBOX_SetText(&osl_ctx, indextb, progTxt);
+
+    /* Poziomy i częstotliwość odświeżamy dla każdego punktu, nawet gdy
+     * całkowity procent jeszcze się nie zmienił. */
+    S21_RysujPoziomyBiezace();
+
+    if (new_percent != (uint32_t)progval)
+    {
+        progval = (int)new_percent;
+        sprintf(progTxt, "%u%%", (unsigned int)progval);
+        TEXTBOX_SetText(&osl_ctx, indextb, progTxt);
+    }
     autosleep_timer = 30000; //CFG_GetParam(CFG_PARAM_LOWPWR_TIME);
 }
 
@@ -1323,6 +1414,275 @@ uint8_t OSL_CalErrCorr(void)
 //TX Calibration for |S21| window
 //KD8CEC
 //---------------------------------------------------------------------
+#define S21_TLUMIK_MIN_X100 100U
+#define S21_TLUMIK_MAX_X100 9999U
+#define S21_WYBOR_Y          148U
+#define S21_WYBOR_H           48U
+
+static void S21_FormatujTlumikX100(char *bufor, uint32_t rozmiar, uint32_t wartosc_x100)
+{
+    const char separator = JEZYK_CzySeparatorDziesietnyPrzecinek() ? ',' : '.';
+
+    if (bufor == NULL || rozmiar == 0U)
+        return;
+    snprintf(bufor, rozmiar, "%lu%c%02lu dB",
+             (unsigned long)(wartosc_x100 / 100U), separator,
+             (unsigned long)(wartosc_x100 % 100U));
+}
+
+static void S21_FormatujCzestotliwosc(char *bufor, uint32_t rozmiar, uint32_t hz)
+{
+    const char separator = JEZYK_CzySeparatorDziesietnyPrzecinek() ? ',' : '.';
+
+    if (bufor == NULL || rozmiar == 0U)
+        return;
+    snprintf(bufor, rozmiar, "%lu%c%03lu MHz",
+             (unsigned long)(hz / 1000000U), separator,
+             (unsigned long)((hz % 1000000U) / 1000U));
+}
+
+static void S21_PokazBladPomiaru(void)
+{
+    OSL_S21_DIAGNOSTYKA_t diagnostyka;
+    char czestotliwosc[32];
+    char tresc[384];
+    char poziomy[180];
+
+    OSL_S21_PobierzDiagnostyke(&diagnostyka);
+    if (isfinite(diagnostyka.napiecie_v_mv) || isfinite(diagnostyka.napiecie_i_mv) ||
+        isfinite(diagnostyka.tlo_i_mv))
+    {
+        char v[24];
+        char i[24];
+        char n[24];
+        if (isfinite(diagnostyka.napiecie_v_mv))
+            snprintf(v, sizeof(v), "%.3f", (double)diagnostyka.napiecie_v_mv);
+        else
+            snprintf(v, sizeof(v), "--");
+        if (isfinite(diagnostyka.napiecie_i_mv))
+            snprintf(i, sizeof(i), "%.3f", (double)diagnostyka.napiecie_i_mv);
+        else
+            snprintf(i, sizeof(i), "--");
+        if (isfinite(diagnostyka.tlo_i_mv))
+            snprintf(n, sizeof(n), "%.3f", (double)diagnostyka.tlo_i_mv);
+        else
+            snprintf(n, sizeof(n), "--");
+
+        if (isfinite(diagnostyka.rozrzut_i_proc))
+            snprintf(poziomy, sizeof(poziomy),
+                     " V=%s mV, I=%s mV, tło=%s mV, rozrzut I=%.1f%%.",
+                     v, i, n, (double)diagnostyka.rozrzut_i_proc);
+        else
+            snprintf(poziomy, sizeof(poziomy),
+                     " V=%s mV, I=%s mV, tło=%s mV.", v, i, n);
+    }
+    else
+        poziomy[0] = '\0';
+    S21_FormatujCzestotliwosc(czestotliwosc, sizeof(czestotliwosc),
+                              diagnostyka.czestotliwosc_hz);
+
+    switch (diagnostyka.kod)
+    {
+    case OSL_S21_BLAD_CZESTOTLIWOSC:
+        snprintf(tresc, sizeof(tresc),
+                 JEZYK_Wybierz(
+                     "Punkt %s nie jest obsługiwany przez bieżący plan generatora. Sprawdź Fmax i zakres kalibracji.",
+                     "Point %s is not supported by the current generator plan. Check Fmax and the calibration range.",
+                     "Der Punkt %s wird vom aktuellen Generatorplan nicht unterstützt. Fmax und Kalibrierbereich prüfen.",
+                     "Точка %s не поддерживается текущим планом генератора. Проверьте Fmax и диапазон калибровки."),
+                 czestotliwosc);
+        break;
+
+    case OSL_S21_BLAD_BRAK_WYJSCIA_TX:
+        snprintf(tresc, sizeof(tresc), "%s",
+                 JEZYK_Wybierz(
+                     "Kalibracja S21 wymaga niezależnego wyjścia TX (CLK2). Bieżąca konfiguracja generatora nie udostępnia tego wyjścia.",
+                     "S21 calibration requires an independent TX output (CLK2). The current generator configuration does not provide it.",
+                     "Die S21-Kalibrierung benötigt einen unabhängigen TX-Ausgang (CLK2). Die aktuelle Generatorkonfiguration stellt ihn nicht bereit.",
+                     "Для калибровки S21 требуется отдельный выход TX (CLK2). Текущая конфигурация генератора его не предоставляет."));
+        break;
+
+    case OSL_S21_BLAD_BRAK_KROKU_1:
+        snprintf(tresc, sizeof(tresc), "%s",
+                 JEZYK_Wybierz(
+                     "Dane kroku 1 są nieważne. Powtórz krok 1 bez tłumika, a dopiero potem wykonaj krok 2.",
+                     "Step 1 data are invalid. Repeat step 1 without the attenuator before running step 2.",
+                     "Die Daten aus Schritt 1 sind ungültig. Schritt 1 ohne Dämpfer wiederholen und erst dann Schritt 2 ausführen.",
+                     "Данные шага 1 недействительны. Повторите шаг 1 без аттенюатора, затем выполните шаг 2."));
+        break;
+
+    case OSL_S21_BLAD_TLUMIK_NIE_TLUMI:
+        snprintf(tresc, sizeof(tresc),
+                 JEZYK_Wybierz(
+                     "Po wstawieniu tłumika poziom nie zmalał przy %s. Sprawdź połączenie S2 -> tłumik -> S1 i sam tłumik.",
+                     "The level did not decrease after inserting the attenuator at %s. Check S2 -> attenuator -> S1 and the attenuator itself.",
+                     "Nach Einsetzen des Dämpfers sank der Pegel bei %s nicht. Verbindung S2 -> Dämpfer -> S1 und Dämpfer prüfen.",
+                     "После установки аттенюатора уровень на %s не уменьшился. Проверьте S2 -> аттенюатор -> S1 и сам аттенюатор."),
+                 czestotliwosc);
+        break;
+
+    case OSL_S21_BLAD_ZBYT_DUZA_LUKA:
+    {
+        OSL_S21_RAPORT_t raport;
+        OSL_S21_PobierzRaport(&raport);
+        snprintf(tresc, sizeof(tresc),
+                 JEZYK_Wybierz(
+                     "Przy %s nie znaleziono żadnego wiarygodnego punktu odniesienia, z którego można bezpiecznie oszacować kalibrację. Pojedyncze i długie luki są już dopuszczane z niską oceną Q; ten przypadek oznacza brak punktów odniesienia.",
+                     "At %s no reliable reference point was found from which calibration could be safely estimated. Short and long gaps are already allowed with low Q; this case means there are no usable reference anchors.",
+                     "Bei %s wurde kein verlässlicher Referenzpunkt gefunden, aus dem die Kalibrierung sicher geschätzt werden könnte. Kurze und lange Lücken sind bereits mit niedriger Q-Bewertung zulässig; hier fehlen nutzbare Referenzpunkte.",
+                     "На %s не найдено ни одной достоверной опорной точки, по которой можно безопасно оценить калибровку. Короткие и длинные пробелы уже допускаются с низкой оценкой Q; здесь отсутствуют пригодные опорные точки."),
+                 czestotliwosc);
+        (void)raport;
+        break;
+    }
+
+    case OSL_S21_BLAD_BRAK_SYGNALU:
+    default:
+        snprintf(tresc, sizeof(tresc),
+                 JEZYK_Wybierz(
+                     "Brak wiarygodnego poziomu przy %s.%s Tor S21 korzysta z kanału I. Jeśli błąd wystąpił w kroku 1 bez tłumika, sprawdź przewód, złącza i zachowanie generatora przy tej częstotliwości. Jeśli występuje dopiero w kroku 2 z dużym tłumieniem, spróbuj mniejszej wartości, np. 40 lub 29 dB.",
+                     "No reliable level at %s.%s S21 uses the I channel. If this happened in step 1 without the attenuator, check the cable, connectors and generator at this frequency. If it occurs only in step 2 with high attenuation, try a lower value such as 40 or 29 dB.",
+                     "Kein zuverlässiger Pegel bei %s.%s S21 verwendet den I-Kanal. Tritt der Fehler schon in Schritt 1 ohne Dämpfer auf, Kabel, Stecker und Generator bei dieser Frequenz prüfen. Tritt es nur in Schritt 2 mit hoher Dämpfung auf, 40 oder 29 dB versuchen.",
+                     "Нет достоверного уровня на %s.%s В S21 используется канал I. Если ошибка возникла уже на шаге 1 без аттенюатора, проверьте кабель, разъёмы и генератор на этой частоте. Если ошибка появляется только на шаге 2 при большом ослаблении, попробуйте 40 или 29 дБ."),
+                 czestotliwosc, poziomy);
+        break;
+    }
+
+    KOMUNIKAT_PokazTekst(JEZYK_Tekst(TEKST_BLAD), tresc);
+}
+
+static bool S21_UstawTlumikRoboczy(uint32_t wartosc_x100)
+{
+    if (wartosc_x100 < S21_TLUMIK_MIN_X100 || wartosc_x100 > S21_TLUMIK_MAX_X100)
+        return false;
+    s21_tlumik_roboczy_x100 = wartosc_x100;
+    return true;
+}
+
+static bool S21_WybierzTlumikKalibracyjny(uint8_t tylko_weryfikacja)
+{
+    UI_AKCJA_t akcje[4];
+    uint8_t fokus;
+
+    /* Po ponownym wejściu zaznaczamy faktycznie używany wzorzec. */
+    if (s21_tlumik_roboczy_x100 == 2900U)
+        fokus = 0U;
+    else if (s21_tlumik_roboczy_x100 == 4000U)
+        fokus = 1U;
+    else if (s21_tlumik_roboczy_x100 == 6000U)
+        fokus = 2U;
+    else
+        fokus = 3U;
+
+    while (TOUCH_IsPressed())
+        Sleep(10U);
+    WEJSCIA_WyczyscZdarzenia();
+
+    for (;;)
+    {
+        LCDPoint punkt;
+        WEJSCIE_ZDARZENIE_t zdarzenie;
+        int16_t akcja = -1;
+        char aktualny[32];
+        char opis[180];
+
+        akcje[0] = (UI_AKCJA_t){ .id = 0, .tekst = "29 dB", .styl = UI_STYL_AKCENT,
+                                 .aktywna = true, .zaznaczona = fokus == 0U };
+        akcje[1] = (UI_AKCJA_t){ .id = 1, .tekst = "40 dB", .styl = UI_STYL_AKTYWNY,
+                                 .aktywna = true, .zaznaczona = fokus == 1U };
+        akcje[2] = (UI_AKCJA_t){ .id = 2, .tekst = "60 dB", .styl = UI_STYL_AKCENT,
+                                 .aktywna = true, .zaznaczona = fokus == 2U };
+        akcje[3] = (UI_AKCJA_t){ .id = 3,
+                                 .tekst = JEZYK_Wybierz("Inna...", "Other...", "Andere...", "Другое..."),
+                                 .styl = UI_STYL_NORMALNY, .aktywna = true,
+                                 .zaznaczona = fokus == 3U };
+
+        S21_FormatujTlumikX100(aktualny, sizeof(aktualny), s21_tlumik_roboczy_x100);
+        snprintf(opis, sizeof(opis),
+                 JEZYK_Wybierz(
+                     "Aktualnie: %s. Wybierz rzeczywiste tłumienie wzorca. Nie musi wynosić 60 dB.",
+                     "Current: %s. Select the actual reference attenuation. It does not have to be 60 dB.",
+                     "Aktuell: %s. Tatsächliche Referenzdämpfung wählen. Sie muss nicht 60 dB betragen.",
+                     "Сейчас: %s. Выберите фактическое ослабление эталона. Оно не обязано быть 60 дБ."),
+                 aktualny);
+
+        UI_WyczyscEkran();
+        UI_RysujPasekGorny(
+            tylko_weryfikacja
+                ? JEZYK_Wybierz("Weryfikacja S21 - tłumik", "S21 verification - attenuator",
+                                "S21-Prüfung - Dämpfer", "Проверка S21 - аттенюатор")
+                : JEZYK_Wybierz("Kalibracja S21 - tłumik", "S21 calibration - attenuator",
+                                "S21-Kalibrierung - Dämpfer", "Калибровка S21 - аттенюатор"),
+            true, false, 0);
+        UI_RysujPoleInformacyjne(14U, 52U, 452U, 76U,
+                                 tylko_weryfikacja
+                                     ? JEZYK_Wybierz("Niezależny wzorzec", "Independent reference",
+                                                     "Unabhängige Referenz", "Независимый эталон")
+                                     : JEZYK_Wybierz("Wzorzec 50 om", "50-ohm reference",
+                                                     "50-Ohm-Referenz", "Эталон 50 Ом"), opis);
+        UI_RysujPasekAkcji(S21_WYBOR_Y, S21_WYBOR_H, akcje, 4U);
+        /* UI_RysujPasekGorny(..., true, ...) rysuje już wspólny Wstecz. */
+
+        for (;;)
+        {
+            if (TOUCH_Poll(&punkt))
+            {
+                akcja = UI_ZnajdzAkcjePaska(punkt, S21_WYBOR_Y, S21_WYBOR_H, akcje, 4U);
+                if (UI_CzyDotknietoWstecz(punkt))
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    return false;
+                }
+                if (akcja >= 0)
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    break;
+                }
+            }
+
+            zdarzenie = WEJSCIA_PobierzZdarzenie();
+            if (zdarzenie == WEJSCIE_ZDARZENIE_WSTECZ)
+                return false;
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_LEWO)
+            {
+                fokus = (uint8_t)((fokus + 3U) % 4U);
+                break;
+            }
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_PRAWO)
+            {
+                fokus = (uint8_t)((fokus + 1U) % 4U);
+                break;
+            }
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OK)
+            {
+                akcja = (int16_t)fokus;
+                break;
+            }
+            Sleep(10U);
+        }
+
+        if (akcja == 0)
+            return S21_UstawTlumikRoboczy(2900U);
+        if (akcja == 1)
+            return S21_UstawTlumikRoboczy(4000U);
+        if (akcja == 2)
+            return S21_UstawTlumikRoboczy(6000U);
+        if (akcja == 3)
+        {
+            uint32_t wynik_x100 = s21_tlumik_roboczy_x100;
+            if (UI_EdytujDecybeleX100Ex(wynik_x100, S21_TLUMIK_MIN_X100,
+                                        S21_TLUMIK_MAX_X100,
+                                        JEZYK_Wybierz("Tłumienie wzorca S21", "S21 reference attenuation",
+                                                      "S21-Referenzdämpfung", "Ослабление эталона S21"),
+                                        &wynik_x100))
+            {
+                return S21_UstawTlumikRoboczy(wynik_x100);
+            }
+            /* Anulowanie edytora wraca do czterech gotowych wyborów. */
+        }
+    }
+}
+
 static void _hit_att_scan(void);
 static TEXTBOX_t *hbscan;
 static int progress;
@@ -1336,15 +1696,21 @@ static void _hit_tx_scan(void) // **********************************************
     hbscan->bgcolor = UI_KolorTlaPrzycisku(UI_STYL_OSTRZEZENIE);
     TEXTBOX_DrawContext(&osl_ctx);
 
-    if (OSL_ScanTXCorr(S21progress_cb) != 0)
+    DSP_UstawDiagnostykeTrack(1U);
     {
-        hbscan->bgcolor = UI_KolorTlaPrzycisku(UI_STYL_OSTRZEZENIE);
-        TEXTBOX_DrawContext(&osl_ctx);
-        KOMUNIKAT_Pokaz(TEKST_BLAD, TEKST_BRAK_SYGNALU_S21);
-        progresstxt[0] = '\0';
-        TEXTBOX_SetText(&osl_ctx, 0, progresstxt);
-        TEXTBOX_DrawContext(&osl_ctx);
-        return;
+        const int32_t wynik_skanu = OSL_ScanTXCorr(S21progress_cb);
+        DSP_UstawDiagnostykeTrack(0U);
+        if (wynik_skanu != 0)
+        {
+            progress = 0;
+            hbscan->bgcolor = UI_KolorTlaPrzycisku(UI_STYL_OSTRZEZENIE);
+            TEXTBOX_DrawContext(&osl_ctx);
+            S21_PokazBladPomiaru();
+            progresstxt[0] = '\0';
+            TEXTBOX_SetText(&osl_ctx, 0, progresstxt);
+            TEXTBOX_DrawContext(&osl_ctx);
+            return;
+        }
     }
 
     hbscan->bgcolor = UI_KolorTlaPrzycisku(UI_STYL_AKTYWNY);
@@ -1374,15 +1740,58 @@ static void _hit_att_scan(void) // *********************************************
     TEXTBOX_DrawContext(&osl_ctx);
 
     {
-        const int32_t wynik = OSL_ScanTXAttenuator(S21progress_cb);
+        int32_t wynik;
+        DSP_UstawDiagnostykeTrack(1U);
+        wynik = OSL_ScanTXAttenuator(S21progress_cb, s21_tlumik_roboczy_x100);
+        DSP_UstawDiagnostykeTrack(0U);
         if (wynik != 0)
         {
-            hbscan->bgcolor = UI_KolorTlaPrzycisku(UI_STYL_OSTRZEZENIE);
+            /*
+             * OSL_ScanTXAttenuator() przy błędzie przywraca ostatnią zapisaną
+             * kalibrację. Stary ekran pozostawiał jednak progress == 1, więc
+             * ponowne naciśnięcie kroku 2 mogło używać starego val0. Wymagamy
+             * ponownego, jawnego kroku 1.
+             */
+            progress = 0;
+            tb_S21_CALIBRATION[1].bgcolor = UI_KolorTlaPrzycisku(UI_STYL_AKCENT);
+            tb_S21_CALIBRATION[2].bgcolor = UI_KolorTlaPrzycisku(UI_STYL_OSTRZEZENIE);
             TEXTBOX_DrawContext(&osl_ctx);
-            if (wynik == -1 || wynik == -4)
-                KOMUNIKAT_Pokaz(TEKST_BLAD, TEKST_BRAK_SYGNALU_S21);
-            else
-                KOMUNIKAT_Pokaz(TEKST_BLAD, CFG_CzyKartaSDDostepna() ? TEKST_BLAD_ZAPISU_PLIKU : TEKST_BRAK_KARTY_SD);
+            {
+                OSL_S21_DIAGNOSTYKA_t diagnostyka;
+                OSL_S21_PobierzDiagnostyke(&diagnostyka);
+                if (diagnostyka.kod != OSL_S21_BLAD_BRAK)
+                    S21_PokazBladPomiaru();
+                else
+                    KOMUNIKAT_Pokaz(TEKST_BLAD, CFG_CzyKartaSDDostepna() ? TEKST_BLAD_ZAPISU_PLIKU : TEKST_BRAK_KARTY_SD);
+            }
+            return;
+        }
+    }
+
+    /*
+     * Dopiero po poprawnym pomiarze obu punktów zatwierdzamy dokładną wartość
+     * wzorca. Najpierw zapisujemy konfigurację, a następnie txcorr.osl. Jeżeli
+     * którykolwiek zapis się nie powiedzie, wracamy do poprzedniej kompletnej
+     * kalibracji i nie zostawiamy pary plików opisujących różne tłumiki.
+     */
+    if (!CFG_UstawS21TlumikDbX100(s21_tlumik_roboczy_x100) || !CFG_FlushSprawdzony())
+    {
+        (void)CFG_UstawS21TlumikDbX100(s21_tlumik_poczatkowy_x100);
+        OSL_LoadTXCorr();
+        progress = 0;
+        KOMUNIKAT_Pokaz(TEKST_BLAD, CFG_CzyKartaSDDostepna() ? TEKST_BLAD_ZAPISU_PLIKU : TEKST_BRAK_KARTY_SD);
+        return;
+    }
+
+    {
+        const int32_t wynik_zapisu = SaveS21CorrToFile();
+        if (wynik_zapisu != 0)
+        {
+            (void)CFG_UstawS21TlumikDbX100(s21_tlumik_poczatkowy_x100);
+            (void)CFG_FlushSprawdzony();
+            OSL_LoadTXCorr();
+            progress = 0;
+            KOMUNIKAT_Pokaz(TEKST_BLAD, CFG_CzyKartaSDDostepna() ? TEKST_BLAD_ZAPISU_PLIKU : TEKST_BRAK_KARTY_SD);
             return;
         }
     }
@@ -1394,12 +1803,92 @@ static void _hit_att_scan(void) // *********************************************
     FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_AKTYWNY), UI_KolorTlaPola(),
                18, 58, JEZYK_Tekst(TEKST_S21_CAL_GOTOWE));
     TEXTBOX_SetText(&osl_ctx, 0, progresstxt);
-    tb_S21_CALIBRATION[3].tekst_id = 0U;
-    tb_S21_CALIBRATION[3].text = JEZYK_Wybierz("Zakończ", "Finish", "Fertig", "Завершить");
+    /*
+     * Po sukcesie nie podmieniamy standardowego przycisku Wstecz na osobny
+     * prostokąt „Zakończ”. TEXTBOX dla roli WSTECZ jest rysowany wspólną
+     * geometrią dolnego paska; zmiana etykiety tworzyła drugi, nakładający się
+     * przycisk. Pozostawiamy jeden czerwony Wstecz w stałym miejscu.
+     */
+    tb_S21_CALIBRATION[3].tekst_id = TEXTBOX_TEKST(TEKST_WSTECZ);
+    tb_S21_CALIBRATION[3].text = 0;
     tb_S21_CALIBRATION[3].rola = TEXTBOX_ROLA_WSTECZ;
-    tb_S21_CALIBRATION[3].fgcolor = UI_KolorTekstu(UI_STYL_AKTYWNY);
-    tb_S21_CALIBRATION[3].bgcolor = UI_KolorTlaPrzycisku(UI_STYL_AKTYWNY);
+    tb_S21_CALIBRATION[3].fgcolor = UI_KolorTekstu(UI_STYL_POWROT);
+    tb_S21_CALIBRATION[3].bgcolor = UI_KolorTlaPrzycisku(UI_STYL_POWROT);
     TEXTBOX_DrawContext(&osl_ctx);
+
+    {
+        OSL_S21_RAPORT_t raport;
+        char tresc[430];
+        char liniowosc[150];
+        const float wzorzec_db = (float)s21_tlumik_roboczy_x100 / 100.0f;
+
+        OSL_S21_PobierzRaport(&raport);
+        if (raport.punkty_tlumika > 0U)
+        {
+            snprintf(liniowosc, sizeof(liniowosc),
+                     JEZYK_Wybierz(
+                         " Wz %.2f dB, śr %.2f dB, zakres %.2f..%.2f dB, RMS %.2f dB, max |d| %.2f dB.",
+                         " Ref %.2f dB, mean %.2f dB, range %.2f..%.2f dB, RMS %.2f dB, max |d| %.2f dB.",
+                         " Ref %.2f dB, Mittel %.2f dB, Bereich %.2f..%.2f dB, RMS %.2f dB, max |d| %.2f dB.",
+                         " Эталон %.2f дБ, среднее %.2f дБ, диапазон %.2f..%.2f дБ, RMS %.2f дБ, макс |d| %.2f дБ."),
+                     (double)wzorzec_db,
+                     (double)raport.tlumienie_zmierzone_srednie_db,
+                     (double)raport.tlumienie_zmierzone_min_db,
+                     (double)raport.tlumienie_zmierzone_max_db,
+                     (double)raport.odchylka_tlumika_rms_db,
+                     (double)raport.odchylka_tlumika_max_abs_db);
+        }
+        else
+        {
+            liniowosc[0] = '\0';
+        }
+
+        if (raport.szacowane != 0U)
+        {
+            char f_od[32];
+            char f_do[32];
+            S21_FormatujCzestotliwosc(f_od, sizeof(f_od), raport.pierwsza_szacowana_hz);
+            S21_FormatujCzestotliwosc(f_do, sizeof(f_do), raport.ostatnia_szacowana_hz);
+            snprintf(tresc, sizeof(tresc),
+                     JEZYK_Wybierz(
+                         "Kalibracja zakończona z obszarem szacowanym. Jakość: %u%%. Dobre: %lu, słabe: %lu, INT: %lu, EST: %lu/%lu. Zakres EST: %s - %s.%s",
+                         "Calibration complete with an estimated region. Quality: %u%%. Good: %lu, weak: %lu, INT: %lu, EST: %lu/%lu. EST range: %s - %s.%s",
+                         "Kalibrierung mit geschätztem Bereich abgeschlossen. Qualität: %u%%. Gut: %lu, schwach: %lu, INT: %lu, EST: %lu/%lu. EST-Bereich: %s - %s.%s",
+                         "Калибровка завершена с оценённым участком. Качество: %u%%. Хороших: %lu, слабых: %lu, INT: %lu, EST: %lu/%lu. Диапазон EST: %s - %s.%s"),
+                     (unsigned int)raport.pewnosc_ogolna_proc,
+                     (unsigned long)raport.dobre, (unsigned long)raport.slabe,
+                     (unsigned long)raport.interpolowane, (unsigned long)raport.szacowane,
+                     (unsigned long)raport.liczba_punktow, f_od, f_do, liniowosc);
+        }
+        else
+        {
+            snprintf(tresc, sizeof(tresc),
+                     JEZYK_Wybierz(
+                         "Kalibracja zakończona. Jakość: %u%%. Dobre: %lu, słabe: %lu, interpolowane: %lu z %lu punktów.%s",
+                         "Calibration complete. Quality: %u%%. Good: %lu, weak: %lu, interpolated: %lu of %lu points.%s",
+                         "Kalibrierung abgeschlossen. Qualität: %u%%. Gut: %lu, schwach: %lu, interpoliert: %lu von %lu Punkten.%s",
+                         "Калибровка завершена. Качество: %u%%. Хороших: %lu, слабых: %lu, интерполированных: %lu из %lu точек.%s"),
+                     (unsigned int)raport.pewnosc_ogolna_proc,
+                     (unsigned long)raport.dobre, (unsigned long)raport.slabe,
+                     (unsigned long)raport.interpolowane,
+                     (unsigned long)raport.liczba_punktow, liniowosc);
+        }
+
+        if (raport.punkty_tlumika > 0U &&
+            (raport.odchylka_tlumika_max_abs_db > 3.0f ||
+             raport.odchylka_tlumika_rms_db > 1.5f))
+        {
+            strncat(tresc,
+                    JEZYK_Wybierz(
+                        " Duża nieliniowość: sprawdź poziom THRU, tłumik i połączenia.",
+                        " Large non-linearity: check THRU level, attenuator and connections.",
+                        " Große Nichtlinearität: THRU-Pegel, Dämpfer und Verbindungen prüfen.",
+                        " Большая нелинейность: проверьте уровень THRU, аттенюатор и соединения."),
+                    sizeof(tresc) - strlen(tresc) - 1U);
+        }
+
+        KOMUNIKAT_PokazTekst(JEZYK_Tekst(TEKST_INFORMACJA), tresc);
+    }
 }
 
 static int rq21Exit;
@@ -1445,24 +1934,43 @@ void OSL_CalTXCorr(void)
     S21progress_cb(0);
     progresstxt[0] = '\0';
     indextb = 0; // percent field
+    s21_tlumik_poczatkowy_x100 = CFG_GetS21TlumikDbX100();
+    s21_tlumik_roboczy_x100 = s21_tlumik_poczatkowy_x100;
+
+    if (!GEN_CzyWyjscieDodatkoweObslugiwane())
+    {
+        KOMUNIKAT_PokazTekst(
+            JEZYK_Tekst(TEKST_BLAD),
+            JEZYK_Wybierz(
+                "Kalibracja S21 wymaga niezależnego wyjścia TX (CLK2). Bieżąca konfiguracja generatora go nie udostępnia.",
+                "S21 calibration requires an independent TX output (CLK2). The current generator configuration does not provide it.",
+                "Die S21-Kalibrierung benötigt einen unabhängigen TX-Ausgang (CLK2). Die aktuelle Generatorkonfiguration stellt ihn nicht bereit.",
+                "Для калибровки S21 требуется отдельный выход TX (CLK2). Текущая конфигурация генератора его не предоставляет."));
+        return;
+    }
+
+    if (!S21_WybierzTlumikKalibracyjny(0U))
+        return;
 
     UI_WyczyscEkran();
     while (TOUCH_IsPressed())
         ;
 
     UI_RysujNaglowek(JEZYK_Tekst(TEKST_S21_CAL_TYTUL));
-    UI_RysujPanel(10, 40, 460, 58, JEZYK_Tekst(TEKST_INFORMACJA), UI_STYL_NORMALNY);
+    UI_RysujPanel(10, 40, 460, 66, JEZYK_Tekst(TEKST_INFORMACJA), UI_STYL_NORMALNY);
     FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_NORMALNY), UI_KolorTlaPola(),
-               18, 62, JEZYK_Tekst(TEKST_S21_CAL_INSTRUKCJA));
+               18, 56, JEZYK_Tekst(TEKST_S21_CAL_INSTRUKCJA));
     {
-        char tlumik_info[96];
-        snprintf(tlumik_info, sizeof(tlumik_info), "%s %lu dB",
+        char tlumik[32];
+        char tlumik_info[112];
+        S21_FormatujTlumikX100(tlumik, sizeof(tlumik), s21_tlumik_roboczy_x100);
+        snprintf(tlumik_info, sizeof(tlumik_info), "%s %s",
                  JEZYK_Wybierz("Tłumik wzorcowy:", "Reference attenuator:",
-                               "Referenzdämpfer:", "Эталонный аттенюатор:"),
-                 (unsigned long)CFG_GetParam(CFG_PARAM_ATTENUATOR));
+                               "Referenzdämpfer:", "Эталонный аттенюатор:"), tlumik);
         FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_NIEAKTYWNY), UI_KolorTlaPola(),
-                   18, 82, tlumik_info);
+                   18, 72, tlumik_info);
     }
+    S21_RysujPoziomyBiezace();
 
     tb_S21_CALIBRATION[0].fgcolor = UI_KolorTekstu(UI_STYL_NORMALNY);
     tb_S21_CALIBRATION[0].bgcolor = UI_KolorTlaPola();
@@ -1489,6 +1997,396 @@ void OSL_CalTXCorr(void)
                 break;
         }
         Sleep(10);
+    }
+}
+
+
+static uint8_t S21_WeryfikacjaCzekajNaStart(uint32_t tlumik_x100)
+{
+    UI_AKCJA_t akcje[2];
+    uint8_t fokus = 1U;
+    char tlumik[32];
+    char opis[220];
+
+    S21_FormatujTlumikX100(tlumik, sizeof(tlumik), tlumik_x100);
+    snprintf(opis, sizeof(opis),
+             JEZYK_Wybierz(
+                 "Wstaw niezależny tłumik %s pomiędzy S2 i S1. Nie zmieniaj przewodów ani adapterów. Pomiar sprawdzi 9 częstotliwości i nie nadpisze kalibracji.",
+                 "Insert an independent %s attenuator between S2 and S1. Do not move cables or adapters. Nine frequencies will be checked without overwriting calibration.",
+                 "Unabhängigen Dämpfer %s zwischen S2 und S1 einsetzen. Kabel und Adapter nicht verändern. Neun Frequenzen werden geprüft; die Kalibrierung bleibt unverändert.",
+                 "Установите независимый аттенюатор %s между S2 и S1. Не меняйте кабели и адаптеры. Будут проверены 9 частот без изменения калибровки."),
+             tlumik);
+
+    for (;;)
+    {
+        LCDPoint punkt;
+        WEJSCIE_ZDARZENIE_t zdarzenie;
+        int16_t akcja = -1;
+
+        akcje[0] = (UI_AKCJA_t){ .id = 0, .tekst = JEZYK_Tekst(TEKST_WSTECZ),
+                                 .styl = UI_STYL_POWROT, .aktywna = true,
+                                 .zaznaczona = fokus == 0U };
+        akcje[1] = (UI_AKCJA_t){ .id = 1,
+                                 .tekst = JEZYK_Wybierz("Pomiar", "Measure", "Messen", "Измерить"),
+                                 .styl = UI_STYL_AKCENT, .aktywna = true,
+                                 .zaznaczona = fokus == 1U };
+
+        UI_WyczyscEkran();
+        UI_RysujPasekGorny(JEZYK_Wybierz("Weryfikacja liniowości S21", "S21 linearity verification",
+                                         "S21-Linearitätsprüfung", "Проверка линейности S21"),
+                            true, false, 0);
+        UI_RysujPoleInformacyjne(14U, 52U, 452U, 142U,
+                                 JEZYK_Wybierz("Niezależny wzorzec", "Independent reference",
+                                               "Unabhängige Referenz", "Независимый эталон"),
+                                 opis);
+        UI_RysujPasekAkcji(222U, 40U, akcje, 2U);
+
+        while (TOUCH_IsPressed())
+            Sleep(10U);
+        WEJSCIA_WyczyscZdarzenia();
+
+        for (;;)
+        {
+            if (TOUCH_Poll(&punkt))
+            {
+                akcja = UI_ZnajdzAkcjePaska(punkt, 222U, 40U, akcje, 2U);
+                if (UI_CzyDotknietoWstecz(punkt) || akcja == 0)
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    return 0U;
+                }
+                if (akcja == 1)
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    return 1U;
+                }
+            }
+
+            zdarzenie = WEJSCIA_PobierzZdarzenie();
+            if (zdarzenie == WEJSCIE_ZDARZENIE_WSTECZ)
+                return 0U;
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_LEWO ||
+                zdarzenie == WEJSCIE_ZDARZENIE_OBROT_PRAWO)
+            {
+                fokus = (uint8_t)(1U - fokus);
+                break;
+            }
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OK)
+                return fokus == 1U ? 1U : 0U;
+            Sleep(10U);
+        }
+    }
+}
+
+static uint8_t S21_PytanieKorekcjaSesji(void)
+{
+    UI_AKCJA_t akcje[2];
+    uint8_t fokus = 0U;
+
+    for (;;)
+    {
+        LCDPoint punkt;
+        WEJSCIE_ZDARZENIE_t zdarzenie;
+        int16_t akcja = -1;
+
+        akcje[0] = (UI_AKCJA_t){ .id = 0,
+            .tekst = JEZYK_Wybierz("Nie", "No", "Nein", "Нет"),
+            .styl = UI_STYL_POWROT, .aktywna = true, .zaznaczona = fokus == 0U };
+        akcje[1] = (UI_AKCJA_t){ .id = 1,
+            .tekst = JEZYK_Wybierz("Włącz", "Enable", "Ein", "Вкл"),
+            .styl = UI_STYL_AKCENT, .aktywna = true, .zaznaczona = fokus == 1U };
+
+        UI_WyczyscEkran();
+        UI_RysujPasekGorny(JEZYK_Wybierz("S21 - korekcja liniowości", "S21 - linearity correction",
+                                         "S21 - Linearitätskorrektur", "S21 - коррекция линейности"),
+                            true, false, 0);
+        UI_RysujPoleInformacyjne(14U, 54U, 452U, 136U,
+            JEZYK_Wybierz("Opcja sesyjna", "Session option", "Sitzungsoption", "Опция сеанса"),
+            JEZYK_Wybierz(
+                "Użyć wyników 29/40/60 dB do korekcji nieliniowości? Profil działa do nowej kalibracji lub restartu i nie zmienia txcorr.osl.",
+                "Use 29/40/60 dB results to correct residual non-linearity? The profile lasts until recalibration or restart and does not change txcorr.osl.",
+                "29/40/60-dB-Ergebnisse zur Korrektur der Restnichtlinearität verwenden? Gilt bis Neukalibrierung/Neustart; txcorr.osl bleibt unverändert.",
+                "Использовать 29/40/60 дБ для коррекции остаточной нелинейности? До новой калибровки/перезапуска; txcorr.osl не меняется."));
+        UI_RysujPasekAkcji(222U, 40U, akcje, 2U);
+
+        while (TOUCH_IsPressed()) Sleep(10U);
+        WEJSCIA_WyczyscZdarzenia();
+        for (;;)
+        {
+            if (TOUCH_Poll(&punkt))
+            {
+                akcja = UI_ZnajdzAkcjePaska(punkt, 222U, 40U, akcje, 2U);
+                if (UI_CzyDotknietoWstecz(punkt) || akcja == 0)
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    return 0U;
+                }
+                if (akcja == 1)
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    return 1U;
+                }
+            }
+            zdarzenie = WEJSCIA_PobierzZdarzenie();
+            if (zdarzenie == WEJSCIE_ZDARZENIE_WSTECZ) return 0U;
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_LEWO ||
+                zdarzenie == WEJSCIE_ZDARZENIE_OBROT_PRAWO)
+            {
+                fokus = (uint8_t)(1U - fokus);
+                break;
+            }
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OK) return fokus;
+            Sleep(10U);
+        }
+    }
+}
+
+static void S21_WeryfikacjaPostep(uint32_t procent)
+{
+    char txt[48];
+    if (procent > 100U)
+        procent = 100U;
+    snprintf(txt, sizeof(txt), "%s %lu%%",
+             JEZYK_Wybierz("Pomiar", "Measurement", "Messung", "Измерение"),
+             (unsigned long)procent);
+    LCD_FillRect(LCD_MakePoint(120U, 150U), LCD_MakePoint(360U, 177U), UI_KolorTlaPola());
+    FONT_Write(FONT_FRANBIG, UI_KolorTekstu(UI_STYL_AKCENT), UI_KolorTlaPola(),
+               170U, 153U, txt);
+}
+
+void OSL_S21_WeryfikacjaWnd(void)
+{
+    OSL_S21_WERYFIKACJA_t wynik;
+    uint32_t poprzedni_tlumik;
+    char tlumik[32];
+    char tresc[430];
+    char ftxt[32];
+    int32_t kod;
+
+    if (!OSL_IsTXCorrLoaded())
+    {
+        KOMUNIKAT_PokazTekst(
+            JEZYK_Tekst(TEKST_OSTRZEZENIE),
+            JEZYK_Wybierz("Najpierw wykonaj i zapisz kalibrację S21.",
+                          "Run and save S21 calibration first.",
+                          "Zuerst die S21-Kalibrierung durchführen und speichern.",
+                          "Сначала выполните и сохраните калибровку S21."));
+        return;
+    }
+    if (!GEN_CzyWyjscieDodatkoweObslugiwane())
+    {
+        KOMUNIKAT_PokazTekst(JEZYK_Tekst(TEKST_BLAD),
+                             JEZYK_Wybierz("Brak niezależnego wyjścia TX dla S21.",
+                                           "No independent TX output for S21.",
+                                           "Kein unabhängiger TX-Ausgang für S21.",
+                                           "Нет независимого выхода TX для S21."));
+        return;
+    }
+
+    poprzedni_tlumik = s21_tlumik_roboczy_x100;
+    s21_tlumik_roboczy_x100 = CFG_GetS21TlumikDbX100();
+    if (!S21_WybierzTlumikKalibracyjny(1U))
+    {
+        s21_tlumik_roboczy_x100 = poprzedni_tlumik;
+        return;
+    }
+
+    if (!S21_WeryfikacjaCzekajNaStart(s21_tlumik_roboczy_x100))
+    {
+        s21_tlumik_roboczy_x100 = poprzedni_tlumik;
+        return;
+    }
+
+    UI_WyczyscEkran();
+    UI_RysujPasekGorny(JEZYK_Wybierz("Weryfikacja liniowości S21", "S21 linearity verification",
+                                     "S21-Linearitätsprüfung", "Проверка линейности S21"),
+                        false, false, 0);
+    UI_RysujPanel(16U, 74U, 448U, 122U,
+                  JEZYK_Wybierz("Trwa pomiar 9 punktów", "Measuring 9 points",
+                                "9 Punkte werden gemessen", "Измерение 9 точек"),
+                  UI_STYL_NORMALNY);
+    S21_WeryfikacjaPostep(0U);
+
+    DSP_UstawDiagnostykeTrack(1U);
+    kod = OSL_S21_WeryfikujTlumik(s21_tlumik_roboczy_x100,
+                                  S21_WeryfikacjaPostep, &wynik);
+    DSP_UstawDiagnostykeTrack(0U);
+    s21_tlumik_roboczy_x100 = poprzedni_tlumik;
+
+    if (kod != 0)
+    {
+        snprintf(tresc, sizeof(tresc),
+                 JEZYK_Wybierz(
+                     "Weryfikacja nie powiodła się (kod %ld). Sprawdź tłumik, połączenia i poziom sygnału. Kalibracja nie została zmieniona.",
+                     "Verification failed (code %ld). Check the attenuator, connections and signal level. Calibration was not changed.",
+                     "Prüfung fehlgeschlagen (Code %ld). Dämpfer, Verbindungen und Signalpegel prüfen. Die Kalibrierung wurde nicht verändert.",
+                     "Проверка не выполнена (код %ld). Проверьте аттенюатор, соединения и уровень сигнала. Калибровка не изменена."),
+                 (long)kod);
+        KOMUNIKAT_PokazTekst(JEZYK_Tekst(TEKST_BLAD), tresc);
+        return;
+    }
+
+    OSL_S21_UstawOceneLiniowosci(&wynik, 1U);
+
+    S21_FormatujTlumikX100(tlumik, sizeof(tlumik), wynik.wzorzec_db_x100);
+    S21_FormatujCzestotliwosc(ftxt, sizeof(ftxt), wynik.czestotliwosc_najgorsza_hz);
+    snprintf(tresc, sizeof(tresc),
+             JEZYK_Wybierz(
+                 "Wzorzec %s. Średnio %.2f dB, zakres %.2f..%.2f dB. Odchyłka śr %+.2f dB, RMS %.2f dB, max %.2f dB przy %s. Jakość %u%%, poprawne %lu/%lu. Kalibracja nie została zmieniona.",
+                 "Reference %s. Mean %.2f dB, range %.2f..%.2f dB. Mean deviation %+.2f dB, RMS %.2f dB, max %.2f dB at %s. Quality %u%%, valid %lu/%lu. Calibration was not changed.",
+                 "Referenz %s. Mittel %.2f dB, Bereich %.2f..%.2f dB. Mittlere Abweichung %+.2f dB, RMS %.2f dB, max %.2f dB bei %s. Qualität %u%%, gültig %lu/%lu. Kalibrierung blieb unverändert.",
+                 "Эталон %s. Среднее %.2f дБ, диапазон %.2f..%.2f дБ. Среднее отклонение %+.2f дБ, RMS %.2f дБ, максимум %.2f дБ на %s. Качество %u%%, достоверно %lu/%lu. Калибровка не изменена."),
+             tlumik,
+             (double)wynik.tlumienie_srednie_db,
+             (double)wynik.tlumienie_min_db,
+             (double)wynik.tlumienie_max_db,
+             (double)wynik.odchylka_srednia_db,
+             (double)wynik.odchylka_rms_db,
+             (double)wynik.odchylka_max_abs_db,
+             ftxt,
+             (unsigned int)wynik.jakosc_proc,
+             (unsigned long)wynik.punkty_poprawne,
+             (unsigned long)wynik.liczba_punktow);
+
+    KOMUNIKAT_PokazTekst(
+        (wynik.odchylka_max_abs_db > 3.0f || wynik.odchylka_rms_db > 1.5f)
+            ? JEZYK_Tekst(TEKST_OSTRZEZENIE)
+            : JEZYK_Tekst(TEKST_INFORMACJA),
+        tresc);
+}
+
+void OSL_S21_WeryfikacjaSeriaWnd(void)
+{
+    static const uint32_t wzorce_x100[3] = { 2900U, 4000U, 6000U };
+    OSL_S21_WERYFIKACJA_t wyniki[3];
+    uint8_t i;
+    float najwiekszy_blad = 0.0f;
+    uint8_t najgorszy = 0U;
+    char tresc[560];
+    size_t uzyto = 0U;
+
+    if (!OSL_IsTXCorrLoaded())
+    {
+        KOMUNIKAT_PokazTekst(
+            JEZYK_Tekst(TEKST_OSTRZEZENIE),
+            JEZYK_Wybierz("Najpierw wykonaj i zapisz kalibrację S21.",
+                          "Run and save S21 calibration first.",
+                          "Zuerst die S21-Kalibrierung durchführen und speichern.",
+                          "Сначала выполните и сохраните калибровку S21."));
+        return;
+    }
+    if (!GEN_CzyWyjscieDodatkoweObslugiwane())
+        return;
+
+    memset(wyniki, 0, sizeof(wyniki));
+
+    for (i = 0U; i < 3U; ++i)
+    {
+        int32_t kod;
+        char tlumik[24];
+        char naglowek[80];
+
+        if (!S21_WeryfikacjaCzekajNaStart(wzorce_x100[i]))
+            return;
+
+        S21_FormatujTlumikX100(tlumik, sizeof(tlumik), wzorce_x100[i]);
+        snprintf(naglowek, sizeof(naglowek), "%s %u/3: %s",
+                 JEZYK_Wybierz("Weryfikacja", "Verification", "Prüfung", "Проверка"),
+                 (unsigned int)(i + 1U), tlumik);
+
+        UI_WyczyscEkran();
+        UI_RysujPasekGorny(JEZYK_Wybierz("S21 - seria 29/40/60 dB", "S21 - 29/40/60 dB series",
+                                         "S21 - Serie 29/40/60 dB", "S21 - серия 29/40/60 дБ"),
+                            false, false, 0);
+        UI_RysujPanel(16U, 74U, 448U, 122U, naglowek, UI_STYL_NORMALNY);
+        S21_WeryfikacjaPostep(0U);
+
+        DSP_UstawDiagnostykeTrack(1U);
+        kod = OSL_S21_WeryfikujTlumik(wzorce_x100[i], S21_WeryfikacjaPostep, &wyniki[i]);
+        DSP_UstawDiagnostykeTrack(0U);
+
+        if (kod != 0)
+        {
+            snprintf(tresc, sizeof(tresc),
+                     JEZYK_Wybierz(
+                         "Serię przerwano przy %s (kod %ld). Sprawdź wzorzec i połączenia. Zapisana kalibracja nie została zmieniona.",
+                         "Series stopped at %s (code %ld). Check the reference and connections. Saved calibration was not changed.",
+                         "Serie bei %s abgebrochen (Code %ld). Referenz und Verbindungen prüfen. Gespeicherte Kalibrierung blieb unverändert.",
+                         "Серия прервана на %s (код %ld). Проверьте эталон и соединения. Сохранённая калибровка не изменена."),
+                     tlumik, (long)kod);
+            KOMUNIKAT_PokazTekst(JEZYK_Tekst(TEKST_BLAD), tresc);
+            return;
+        }
+
+        if (wyniki[i].odchylka_max_abs_db > najwiekszy_blad)
+        {
+            najwiekszy_blad = wyniki[i].odchylka_max_abs_db;
+            najgorszy = i;
+        }
+    }
+
+    OSL_S21_UstawOceneLiniowosci(wyniki, 3U);
+
+    tresc[0] = '\0';
+    for (i = 0U; i < 3U; ++i)
+    {
+        char wiersz[150];
+        const int n = snprintf(wiersz, sizeof(wiersz),
+                               "%u dB: śr %.2f  d=%+.2f  RMS %.2f  max %.2f dB  J%u%%\n",
+                               (unsigned int)(wzorce_x100[i] / 100U),
+                               (double)wyniki[i].tlumienie_srednie_db,
+                               (double)wyniki[i].odchylka_srednia_db,
+                               (double)wyniki[i].odchylka_rms_db,
+                               (double)wyniki[i].odchylka_max_abs_db,
+                               (unsigned int)wyniki[i].jakosc_proc);
+        if (n > 0 && uzyto + (size_t)n < sizeof(tresc))
+        {
+            memcpy(tresc + uzyto, wiersz, (size_t)n);
+            uzyto += (size_t)n;
+            tresc[uzyto] = '\0';
+        }
+    }
+
+    if (uzyto < sizeof(tresc) - 120U)
+    {
+        char koniec[180];
+        const uint8_t narasta = (uint8_t)(
+            fabsf(wyniki[2].odchylka_srednia_db) > fabsf(wyniki[0].odchylka_srednia_db) + 1.0f ||
+            wyniki[2].odchylka_rms_db > wyniki[0].odchylka_rms_db + 1.0f);
+        snprintf(koniec, sizeof(koniec),
+                 JEZYK_Wybierz(
+                     "Największy błąd: %.2f dB dla %u dB.%s Kalibracja nie została zmieniona.",
+                     "Largest error: %.2f dB at %u dB.%s Calibration was not changed.",
+                     "Größter Fehler: %.2f dB bei %u dB.%s Kalibrierung blieb unverändert.",
+                     "Наибольшая ошибка: %.2f дБ при %u дБ.%s Калибровка не изменена."),
+                 (double)najwiekszy_blad,
+                 (unsigned int)(wzorce_x100[najgorszy] / 100U),
+                 narasta
+                    ? JEZYK_Wybierz(" Błąd rośnie z tłumieniem - możliwa nieliniowość lub granica dynamiki.",
+                                    " Error grows with attenuation - possible non-linearity or dynamic-range limit.",
+                                    " Fehler wächst mit der Dämpfung - mögliche Nichtlinearität oder Dynamikgrenze.",
+                                    " Ошибка растёт с ослаблением - возможна нелинейность или предел динамики.")
+                    : "");
+        strncat(tresc, koniec, sizeof(tresc) - strlen(tresc) - 1U);
+    }
+
+    KOMUNIKAT_PokazTekst(
+        (najwiekszy_blad > 3.0f || wyniki[2].odchylka_rms_db > 1.5f)
+            ? JEZYK_Tekst(TEKST_OSTRZEZENIE)
+            : JEZYK_Tekst(TEKST_INFORMACJA),
+        tresc);
+
+    /*
+     * Dopiero poprawna, monotoniczna seria może utworzyć dodatkową korekcję.
+     * Nie aktywujemy jej automatycznie: użytkownik świadomie decyduje, czy
+     * trzy niezależne tłumiki są wystarczająco wiarygodnymi wzorcami.
+     */
+    if (OSL_S21_PrzygotujKorekcjeLiniowosci(wyniki, 3U) == 0)
+    {
+        if (S21_PytanieKorekcjaSesji())
+            OSL_S21_UstawKorekcjeLiniowosciAktywna(1U);
+        else
+            OSL_S21_WyczyscKorekcjeLiniowosci();
     }
 }
 
@@ -1621,14 +2519,7 @@ static void OSL_DokRysujS21(uint8_t etap)
                etap == 0U ? JEZYK_Tekst(TEKST_S21_CAL_INSTRUKCJA) : (etap == 1U ? JEZYK_Tekst(TEKST_S21_CAL_WLOZ_TLUMIK) : JEZYK_Tekst(TEKST_S21_CAL_GOTOWE)));
     UI_RysujPrzycisk(2, 110, 476, 34, JEZYK_Tekst(TEKST_S21_CAL_BEZ_TLUMIKA), etap >= 1U ? UI_STYL_AKTYWNY : UI_STYL_AKCENT, FONT_FRANBIG);
     UI_RysujPrzycisk(2, 160, 476, 34, JEZYK_Tekst(TEKST_S21_CAL_Z_TLUMIKIEM), etap >= 2U ? UI_STYL_AKTYWNY : UI_STYL_AKCENT, FONT_FRANBIG);
-    if (etap >= 2U)
-    {
-        const UI_PROSTOKAT_t zakoncz = UI_ObszarPrzyciskuDolnego(0U);
-        UI_RysujPrzycisk(zakoncz.x, zakoncz.y, zakoncz.szerokosc, zakoncz.wysokosc,
-                         JEZYK_Wybierz("Zakończ", "Finish", "Fertig", "Завершить"), UI_STYL_AKTYWNY, FONT_FRAN);
-    }
-    else
-        UI_RysujWsteczDolny(false);
+    UI_RysujWsteczDolny(false);
 }
 
 void OSL_DokumentacjaRysujStrone(uint32_t strona)

@@ -71,4 +71,11 @@ uint32_t UI_EdytujRezystancjeMiliohm(uint32_t poczatkowa_mohm,
                                      uint32_t maksimum_mohm,
                                      const char *tytul);
 
+/* Edycja tłumienia w setnych dB; 4000 oznacza 40,00 dB. */
+bool UI_EdytujDecybeleX100Ex(uint32_t poczatkowa_x100,
+                             uint32_t minimum_x100,
+                             uint32_t maksimum_x100,
+                             const char *tytul,
+                             uint32_t *wynik_x100);
+
 #endif /* _UI_EDYTOR_LICZBY_H_ */

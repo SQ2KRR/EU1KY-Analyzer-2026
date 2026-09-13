@@ -53,6 +53,13 @@ uint8_t SCREENSHOT_ZapiszBMPDoPliku(const char *sciezka);
 void SCREENSHOT_PobierzDiagnostykeZapisu(SCREENSHOT_DIAGNOSTYKA_ZAPISU_t *diagnostyka);
 const char *SCREENSHOT_NazwaEtapuZapisu(SCREENSHOT_ETAP_ZAPISU_t etap);
 void SCREENSHOT_SavePNG(const char *fname);
+
+/*
+ * Jednoprzyciskowy zrzut bez klawiatury i bez modyfikowania obrazu LCD.
+ * Nazwa jest nadawana automatycznie w katalogu /aa/snapshot.
+ */
+uint8_t SCREENSHOT_ZapiszAutomatyczny(void);
+
 void SCREENSHOT_ShowPicture(uint16_t Pointer1);
 void SCREENSHOT_DeleteFile(uint16_t Pointer1);
 void Date_Time_Stamp(void);

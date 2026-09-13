@@ -70,7 +70,7 @@ static bool S21_SredniaBrzegu(const float *strata_db, const uint8_t *poprawny,
 
     for (i = 0U; i < liczba && znaleziono < ile_docelowo; ++i)
     {
-        uint16_t idx = prawy ? (uint16_t)(liczba - 1U - i) : i;
+        const uint16_t idx = prawy ? (uint16_t)(liczba - 1U - i) : i;
         if (!poprawny[idx] || !isfinite(strata_db[idx]))
             continue;
         suma += strata_db[idx];
@@ -95,8 +95,8 @@ static bool S21_SzukajLewegoPrzeciecia(const float *strata_db, const uint8_t *po
 
     for (i = indeks_srodka; i > 0U; --i)
     {
-        uint16_t lewy = (uint16_t)(i - 1U);
-        uint16_t prawy = i;
+        const uint16_t lewy = (uint16_t)(i - 1U);
+        const uint16_t prawy = i;
         bool przecina;
         float fl;
         float fp;
@@ -133,8 +133,8 @@ static bool S21_SzukajPrawegoPrzeciecia(const float *strata_db, const uint8_t *p
 
     for (i = indeks_srodka; i + 1U < liczba; ++i)
     {
-        uint16_t lewy = i;
-        uint16_t prawy = (uint16_t)(i + 1U);
+        const uint16_t lewy = i;
+        const uint16_t prawy = (uint16_t)(i + 1U);
         bool przecina;
         float fl;
         float fp;
@@ -162,6 +162,123 @@ static bool S21_SzukajPrawegoPrzeciecia(const float *strata_db, const uint8_t *p
     return false;
 }
 
+static bool S21_WyznaczPasmoBPF(const float *strata_db, const uint8_t *poprawny,
+                                uint16_t liczba, uint16_t indeks_srodka,
+                                uint32_t f_start_hz, float krok_hz,
+                                float prog_db, float *f1_hz, float *f2_hz,
+                                float *pasmo_hz)
+{
+    float f1;
+    float f2;
+
+    if (!S21_SzukajLewegoPrzeciecia(strata_db, poprawny, indeks_srodka,
+                                    f_start_hz, krok_hz, prog_db, true,
+                                    &f1, NULL))
+        return false;
+    if (!S21_SzukajPrawegoPrzeciecia(strata_db, poprawny, liczba, indeks_srodka,
+                                     f_start_hz, krok_hz, prog_db, true,
+                                     &f2, NULL))
+        return false;
+    if (!(f2 > f1))
+        return false;
+
+    if (f1_hz != NULL)
+        *f1_hz = f1;
+    if (f2_hz != NULL)
+        *f2_hz = f2;
+    if (pasmo_hz != NULL)
+        *pasmo_hz = f2 - f1;
+    return true;
+}
+
+static uint16_t S21_PoliczPunkty(const uint8_t *maska, const uint8_t *poprawny,
+                                uint16_t liczba, uint32_t f_start_hz, float krok_hz,
+                                float f_od_hz, float f_do_hz)
+{
+    uint16_t i;
+    uint16_t ile = 0U;
+
+    if (poprawny == NULL)
+        return 0U;
+
+    for (i = 0U; i < liczba; ++i)
+    {
+        const float f = S21_CzestotliwoscPunktu(i, f_start_hz, krok_hz);
+        if (!poprawny[i] || (maska != NULL && !maska[i]))
+            continue;
+        if (f >= f_od_hz && f <= f_do_hz)
+            ++ile;
+    }
+    return ile;
+}
+
+static uint8_t S21_OcenProbkowanie(uint16_t punkty_bw3)
+{
+    /*
+     * Ocena jest wskaźnikiem użytkowym, a nie niepewnością metrologiczną.
+     * Poprzednia wersja miała skok 45% -> 65% pomiędzy 15 i 16 punktami,
+     * przez co dwa praktycznie identyczne pomiary dostawały zupełnie inną
+     * ocenę. Stosujemy łagodną funkcję odcinkowo-liniową.
+     *
+     *  2 pkt  ~15%  - wynik tylko orientacyjny
+     *  8 pkt  ~52%  - wynik roboczy
+     * 15 pkt  ~71%  - wynik użyteczny
+     * 24 pkt  ~83%  - dobry
+     * 32 pkt  ~92%  - bardzo dobry
+     */
+    if (punkty_bw3 >= 64U)
+        return 100U;
+    if (punkty_bw3 >= 32U)
+        return (uint8_t)(92U + ((uint32_t)(punkty_bw3 - 32U) * 8U) / 32U);
+    if (punkty_bw3 >= 16U)
+        return (uint8_t)(74U + ((uint32_t)(punkty_bw3 - 16U) * 18U) / 16U);
+    if (punkty_bw3 >= 8U)
+        return (uint8_t)(52U + ((uint32_t)(punkty_bw3 - 8U) * 22U) / 8U);
+    if (punkty_bw3 >= 4U)
+        return (uint8_t)(30U + ((uint32_t)(punkty_bw3 - 4U) * 22U) / 4U);
+    if (punkty_bw3 >= 2U)
+        return (uint8_t)(15U + ((uint32_t)(punkty_bw3 - 2U) * 15U) / 2U);
+    if (punkty_bw3 == 1U)
+        return 8U;
+    return 0U;
+}
+
+static float S21_ZafalowanieSrodka(const float *strata_db, const uint8_t *poprawny,
+                                  uint16_t liczba, uint32_t f_start_hz, float krok_hz,
+                                  float f1_3db_hz, float f2_3db_hz)
+{
+    const float szerokosc = f2_3db_hz - f1_3db_hz;
+    const float f_od = f1_3db_hz + 0.20f * szerokosc;
+    const float f_do = f2_3db_hz - 0.20f * szerokosc;
+    bool ma = false;
+    float min_v = 0.0f;
+    float max_v = 0.0f;
+    uint16_t i;
+
+    if (!(szerokosc > 0.0f))
+        return 0.0f;
+
+    for (i = 0U; i < liczba; ++i)
+    {
+        const float f = S21_CzestotliwoscPunktu(i, f_start_hz, krok_hz);
+        const float v = strata_db[i];
+        if (!poprawny[i] || !isfinite(v) || f < f_od || f > f_do)
+            continue;
+        if (!ma)
+        {
+            min_v = max_v = v;
+            ma = true;
+        }
+        else
+        {
+            if (v < min_v) min_v = v;
+            if (v > max_v) max_v = v;
+        }
+    }
+
+    return ma ? (max_v - min_v) : 0.0f;
+}
+
 const char *S21_NazwaTypu(S21_TYP_FILTRU_t typ)
 {
     switch (typ)
@@ -175,7 +292,8 @@ const char *S21_NazwaTypu(S21_TYP_FILTRU_t typ)
 }
 
 bool S21_AnalizujFiltr(const float *strata_db, const uint8_t *poprawny,
-                       uint16_t liczba, uint32_t f_start_hz, float krok_hz,
+                       const uint8_t *zmierzony, uint16_t liczba,
+                       uint32_t f_start_hz, float krok_hz,
                        S21_ANALIZA_t *wynik)
 {
     uint16_t i;
@@ -186,7 +304,14 @@ bool S21_AnalizujFiltr(const float *strata_db, const uint8_t *poprawny,
     float maksimum = 0.0f;
     float lewy_brzeg;
     float prawy_brzeg;
-    const uint16_t margines = (uint16_t)(liczba / 5U);
+    /*
+     * Do rozpoznania BPF wystarczy, aby maksimum transmisji nie leżało tuż
+     * przy krawędzi skanu. Poprzedni margines 20% był zbyt duży: szeroki
+     * skan filtru testowego z pasmem w dolnej części zakresu był mylnie
+     * klasyfikowany jako LPF i tracił szerokości -6/-10/-20/-40 dB.
+     * Pięć procent nadal chroni przed uznaniem zwykłego zbocza LPF/HPF za BPF.
+     */
+    const uint16_t margines = (uint16_t)((liczba / 20U) > 3U ? (liczba / 20U) : 3U);
     bool minimum_wewnatrz;
     bool maksimum_wewnatrz;
 
@@ -198,10 +323,16 @@ bool S21_AnalizujFiltr(const float *strata_db, const uint8_t *poprawny,
         !isfinite(krok_hz) || krok_hz <= 0.0f)
         return false;
 
+    wynik->krok_hz = krok_hz;
+
     for (i = 0U; i < liczba; ++i)
     {
         if (!poprawny[i] || !isfinite(strata_db[i]))
             continue;
+        ++wynik->punkty_poprawne;
+        if (zmierzony == NULL || zmierzony[i])
+            ++wynik->punkty_zmierzone;
+
         if (!znaleziono)
         {
             minimum = maksimum = strata_db[i];
@@ -239,11 +370,6 @@ bool S21_AnalizujFiltr(const float *strata_db, const uint8_t *poprawny,
     minimum_wewnatrz = indeks_minimum > margines && indeks_minimum + margines < liczba;
     maksimum_wewnatrz = indeks_maksimum > margines && indeks_maksimum + margines < liczba;
 
-    /*
-     * Klasyfikacja jest celowo konserwatywna. Minimalny kontrast 6 dB chroni
-     * przed nazywaniem niemal plaskiej charakterystyki filtrem tylko z powodu
-     * szumu lub niewielkiego przechylu kalibracji.
-     */
     if (minimum_wewnatrz &&
         lewy_brzeg - minimum >= S21_MIN_KONTRAST_TYPU_DB &&
         prawy_brzeg - minimum >= S21_MIN_KONTRAST_TYPU_DB)
@@ -309,9 +435,98 @@ bool S21_AnalizujFiltr(const float *strata_db, const uint8_t *poprawny,
     if (wynik->ma_lewy_3db && wynik->ma_prawy_3db &&
         wynik->f2_3db_hz > wynik->f1_3db_hz)
     {
+        /*
+         * Dla BPF/LPF/HPF ekstremum przepuszczania jest minimum straty,
+         * natomiast dla NOTCH środkiem zapadki jest maksimum straty.
+         * Poprzednia wersja używała f_min również dla NOTCH, przez co BW3
+         * było poprawne, ale asymetria zapadki mogła być bezsensowna.
+         */
+        const float f_ekstremum = wynik->typ == S21_TYP_NOTCH
+            ? wynik->f_max_hz : wynik->f_min_hz;
+        const float lewa_polowa = f_ekstremum - wynik->f1_3db_hz;
+        const float prawa_polowa = wynik->f2_3db_hz - f_ekstremum;
+        const float suma_polow = fabsf(lewa_polowa) + fabsf(prawa_polowa);
+
         wynik->pasmo_3db_hz = wynik->f2_3db_hz - wynik->f1_3db_hz;
+        wynik->f_srodek_3db_hz = 0.5f * (wynik->f1_3db_hz + wynik->f2_3db_hz);
         if (wynik->typ == S21_TYP_BPF && wynik->pasmo_3db_hz > 0.0f)
-            wynik->q_3db = wynik->f_min_hz / wynik->pasmo_3db_hz;
+            wynik->q_3db = wynik->f_srodek_3db_hz / wynik->pasmo_3db_hz;
+        if (suma_polow > 1.0f)
+            wynik->asymetria_3db_proc = 100.0f * fabsf(lewa_polowa - prawa_polowa) / suma_polow;
+        if (wynik->typ == S21_TYP_BPF)
+            wynik->przesuniecie_piku_od_srodka_hz = wynik->f_min_hz - wynik->f_srodek_3db_hz;
+
+        /*
+         * Dwa przecięcia są interpolowane pomiędzy próbkami. Nie nazywamy
+         * tego formalną niepewnością, bo ta wymagałaby także modelu szumu,
+         * kalibracji i nachylenia zboczy. Jako bezpieczną informację UI
+         * podaje rozdzielczość siatki: około jeden krok dla całego BW3.
+         */
+        wynik->rozdzielczosc_bw3_hz = krok_hz;
+
+        wynik->punkty_bw3 = S21_PoliczPunkty(NULL, poprawny, liczba, f_start_hz,
+                                             krok_hz, wynik->f1_3db_hz,
+                                             wynik->f2_3db_hz);
+        wynik->punkty_zmierzone_bw3 = S21_PoliczPunkty(zmierzony, poprawny, liczba,
+                                                       f_start_hz, krok_hz,
+                                                       wynik->f1_3db_hz,
+                                                       wynik->f2_3db_hz);
+        wynik->jakosc_probkowania_proc = S21_OcenProbkowanie(wynik->punkty_zmierzone_bw3);
+        wynik->zafalowanie_srodka_db = S21_ZafalowanieSrodka(
+            strata_db, poprawny, liczba, f_start_hz, krok_hz,
+            wynik->f1_3db_hz, wynik->f2_3db_hz);
+    }
+    else
+    {
+        wynik->jakosc_probkowania_proc = 0U;
+    }
+
+    /*
+     * Szerokości progowe liczymy dla każdej charakterystyki z maksimum
+     * transmisji, z wyjątkiem NOTCH. Jeżeli jedna strona nie ma przecięcia
+     * (typowy LPF/HPF), funkcja po prostu zwróci false. Dzięki temu BPF
+     * położony blisko jednej krawędzi szerokiego skanu nie traci danych tylko
+     * dlatego, że klasyfikator typu był ostrożny.
+     */
+    if (wynik->typ != S21_TYP_NOTCH)
+    {
+        wynik->ma_6db = S21_WyznaczPasmoBPF(
+            strata_db, poprawny, liczba, indeks_minimum, f_start_hz, krok_hz,
+            minimum + 6.0f, &wynik->f1_6db_hz, &wynik->f2_6db_hz,
+            &wynik->pasmo_6db_hz);
+        wynik->ma_10db = S21_WyznaczPasmoBPF(
+            strata_db, poprawny, liczba, indeks_minimum, f_start_hz, krok_hz,
+            minimum + 10.0f, &wynik->f1_10db_hz, &wynik->f2_10db_hz,
+            &wynik->pasmo_10db_hz);
+        wynik->ma_20db = S21_WyznaczPasmoBPF(
+            strata_db, poprawny, liczba, indeks_minimum, f_start_hz, krok_hz,
+            minimum + 20.0f, &wynik->f1_20db_hz, &wynik->f2_20db_hz,
+            &wynik->pasmo_20db_hz);
+        wynik->ma_40db = S21_WyznaczPasmoBPF(
+            strata_db, poprawny, liczba, indeks_minimum, f_start_hz, krok_hz,
+            minimum + 40.0f, &wynik->f1_40db_hz, &wynik->f2_40db_hz,
+            &wynik->pasmo_40db_hz);
+        wynik->ma_60db = S21_WyznaczPasmoBPF(
+            strata_db, poprawny, liczba, indeks_minimum, f_start_hz, krok_hz,
+            minimum + 60.0f, &wynik->f1_60db_hz, &wynik->f2_60db_hz,
+            &wynik->pasmo_60db_hz);
+
+        if (wynik->pasmo_3db_hz > 0.0f)
+        {
+            if (wynik->ma_20db)
+                wynik->shape_20_3 = wynik->pasmo_20db_hz / wynik->pasmo_3db_hz;
+            if (wynik->ma_40db)
+                wynik->shape_40_3 = wynik->pasmo_40db_hz / wynik->pasmo_3db_hz;
+            if (wynik->ma_60db)
+                wynik->shape_60_3 = wynik->pasmo_60db_hz / wynik->pasmo_3db_hz;
+        }
+        if (wynik->ma_6db && wynik->pasmo_6db_hz > 0.0f)
+        {
+            if (wynik->ma_40db)
+                wynik->shape_40_6 = wynik->pasmo_40db_hz / wynik->pasmo_6db_hz;
+            if (wynik->ma_60db)
+                wynik->shape_60_6 = wynik->pasmo_60db_hz / wynik->pasmo_6db_hz;
+        }
     }
 
     switch (wynik->typ)

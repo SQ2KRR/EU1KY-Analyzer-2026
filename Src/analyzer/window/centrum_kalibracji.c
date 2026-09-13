@@ -864,18 +864,115 @@ static void CK_UruchomLC(void)
     CK_UruchomOSL();
 }
 
+static uint8_t CK_WybierzAkcjeS21(void)
+{
+    UI_AKCJA_t akcje[4];
+    uint8_t fokus = 1U;
+
+    for (;;)
+    {
+        LCDPoint punkt;
+        WEJSCIE_ZDARZENIE_t zdarzenie;
+        int16_t akcja = -1;
+
+        akcje[0] = (UI_AKCJA_t){ .id = 0, .tekst = JEZYK_Tekst(TEKST_WSTECZ),
+                                 .styl = UI_STYL_POWROT, .aktywna = true,
+                                 .zaznaczona = fokus == 0U };
+        akcje[1] = (UI_AKCJA_t){ .id = 1,
+                                 .tekst = CK_T("Kalibruj", "Calibrate", "Kalibrieren", "Калибровка"),
+                                 .styl = UI_STYL_AKCENT, .aktywna = true,
+                                 .zaznaczona = fokus == 1U };
+        akcje[2] = (UI_AKCJA_t){ .id = 2,
+                                 .tekst = CK_T("Sprawdź", "Verify", "Prüfen", "Проверить"),
+                                 .styl = UI_STYL_AKTYWNY, .aktywna = true,
+                                 .zaznaczona = fokus == 2U };
+        akcje[3] = (UI_AKCJA_t){ .id = 3,
+                                 .tekst = "29/40/60",
+                                 .styl = UI_STYL_AKCENT, .aktywna = true,
+                                 .zaznaczona = fokus == 3U };
+
+        UI_WyczyscEkran();
+        UI_RysujPasekGorny(CK_T("S21 - kalibracja", "S21 calibration",
+                                  "S21-Kalibrierung", "Калибровка S21"),
+                            true, false, 0);
+        UI_RysujPoleInformacyjne(
+            14U, 52U, 452U, 140U,
+            CK_T("Co chcesz zrobić?", "Choose an action", "Aktion wählen", "Выберите действие"),
+            CK_T("Kalibruj: THRU + tłumik. Sprawdź: 9 częstotliwości. 29/40/60: test liniowości trzech wzorców. Testy nie zmieniają kalibracji.",
+                 "Calibrate: THRU + attenuator. Verify: 9 frequencies. 29/40/60 tests linearity with three references. Calibration is unchanged.",
+                 "Kalibrieren: THRU + Dämpfer. Prüfen: 9 Frequenzen. 29/40/60 testet Linearität mit drei Referenzen. Kalibrierung bleibt unverändert.",
+                 "Калибровка: THRU + аттенюатор. Проверка: 9 частот. 29/40/60 проверяет линейность тремя эталонами. Калибровка не меняется."));
+        UI_RysujPasekAkcji(222U, 40U, akcje, 4U);
+
+        while (TOUCH_IsPressed())
+            Sleep(10U);
+        WEJSCIA_WyczyscZdarzenia();
+
+        for (;;)
+        {
+            if (TOUCH_Poll(&punkt))
+            {
+                akcja = UI_ZnajdzAkcjePaska(punkt, 222U, 40U, akcje, 4U);
+                if (UI_CzyDotknietoWstecz(punkt) || akcja == 0)
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    return 0U;
+                }
+                if (akcja == 1 || akcja == 2 || akcja == 3)
+                {
+                    TOUCH_CzekajNaPuszczenie(30U);
+                    return (uint8_t)akcja;
+                }
+            }
+
+            zdarzenie = WEJSCIA_PobierzZdarzenie();
+            if (zdarzenie == WEJSCIE_ZDARZENIE_WSTECZ)
+                return 0U;
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_LEWO)
+            {
+                fokus = (uint8_t)((fokus + 3U) % 4U);
+                break;
+            }
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_PRAWO)
+            {
+                fokus = (uint8_t)((fokus + 1U) % 4U);
+                break;
+            }
+            if (zdarzenie == WEJSCIE_ZDARZENIE_OK)
+                return fokus;
+            Sleep(10U);
+        }
+    }
+}
+
 static void CK_UruchomS21(void)
 {
+    uint8_t akcja = 1U;
+
     if (!CK_KontrolaWstepnaKalibracji())
         return;
-    if (CFG_GetParam(CFG_PARAM_ATTENUATOR) == 0U)
-    {
-        KOMUNIKAT_PokazTekst(CK_T("Tłumik S21 = 0 dB", "S21 attenuator = 0 dB", "S21-Dämpfer = 0 dB", "Аттенюатор S21 = 0 dB"),
-                             CK_T("Dwupunktowa kalibracja S21 wymaga znanego, niezerowego tłumika. Otwieram właściwy parametr konfiguracji.", "Two-point S21 calibration needs a known non-zero attenuator. Opening the relevant setting.", "Die Zweipunkt-S21-Kalibrierung braucht einen bekannten Dämpfer ungleich 0 dB.", "Для двухточечной S21 нужен известный ненулевой аттенюатор."));
-        CFG_ParamWndOdParametru(CFG_PARAM_ATTENUATOR);
-        return;
-    }
-    OSL_CalTXCorr();
+
+    /*
+     * Przy pierwszej kalibracji nie dokładamy niepotrzebnego ekranu. Jeżeli
+     * profil S21 już istnieje, ten sam kafel daje dostęp również do niezależnej
+     * weryfikacji liniowości bez nadpisywania współczynników.
+     */
+    if (OSL_IsTXCorrLoaded())
+        akcja = CK_WybierzAkcjeS21();
+
+    if (akcja == 1U)
+        OSL_CalTXCorr();
+    else if (akcja == 2U)
+        OSL_S21_WeryfikacjaWnd();
+    else if (akcja == 3U)
+        OSL_S21_WeryfikacjaSeriaWnd();
+
+    /*
+     * Kalibracja i ekran S21 korzystają z warstw LCD w różny sposób. Po
+     * powrocie wymuszamy widoczność wyłącznie bieżącej warstwy, aby stary
+     * przycisk Wstecz z drugiej warstwy nie prześwitywał pod nowym ekranem.
+     */
+    LCD_ShowActiveLayerOnly();
 }
 
 static CK_EKRAN_t CK_WykonajAkcje(CK_AKCJA_t akcja, CK_EKRAN_t skad)

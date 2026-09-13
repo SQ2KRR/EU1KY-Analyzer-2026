@@ -44,9 +44,27 @@ volatile uint32_t secondsCounter;
 
 uint8_t NotSleepMode = 0;
 
+static uint8_t zrzut_enkodera_w_toku;
+
+static void ObsluzZrzutZPrzyciskuEnkodera(void)
+{
+    if (zrzut_enkodera_w_toku || !WEJSCIA_PobierzZadanieZrzutu())
+        return;
+
+    /*
+     * Zapis na karte moze trwac setki milisekund. Wykonujemy go swiadomie
+     * dopiero po pelnym, odfiltrowanym nacisnieciu przycisku i blokujemy
+     * rekurencje, bo obsluga zrzutu moze po drodze wywolac Sleep().
+     */
+    zrzut_enkodera_w_toku = 1U;
+    (void)SCREENSHOT_ZapiszAutomatyczny();
+    zrzut_enkodera_w_toku = 0U;
+}
+
 void Sleep(uint32_t nms)
 {
     WEJSCIA_Aktualizuj();
+    ObsluzZrzutZPrzyciskuEnkodera();
     if (CFG_PROTO_NANOVNA == CFG_GetParam(CFG_PARAM_SEREMUL))
     { // NanoVNA protocol runs in any window
         shell_rx_proc();
@@ -85,6 +103,7 @@ void Sleep(uint32_t nms)
     {
         __WFI();
         WEJSCIA_Aktualizuj();
+        ObsluzZrzutZPrzyciskuEnkodera();
         if (CFG_PROTO_NANOVNA == CFG_GetParam(CFG_PARAM_SEREMUL))
         { // NanoVNA protocol runs in any window
             shell_rx_proc();
@@ -154,6 +173,10 @@ int main(void)
         (void)CFG_SD_SprobujPrzywrocic();
     }
     CFG_Init(); // Wczytanie konfiguracji albo ustawien domyslnych z RAM.
+    WEJSCIA_UstawTrybPrzyciskuEnkodera(
+        CFG_GetParam(CFG_PARAM_PRZYCISK_ENKODERA) != 0U
+            ? WEJSCIA_PRZYCISK_ENKODERA_ZRZUT
+            : WEJSCIA_PRZYCISK_ENKODERA_OK);
     if (CFG_GetParam(CFG_PARAM_ORIENTATION) != 0)
         LCD_Set_Orientation(1); //   *** DH1AKF 07.10.2020
     CFG_Flush();

@@ -290,6 +290,45 @@ typedef enum
      */
     CFG_PARAM_KOLOR_KRZYWEJ_SWR, // 0=Stalowy (domyslny), 1=Zielony, 2=Bursztynowy, 3=Czerwony
 
+    /*
+     * Dokładne tłumienie wzorca S21 w setnych dB. Pole jest dopisane na
+     * końcu konfiguracji, więc starsze pliki CFG zachowują zgodność.
+     * Przykład: 4000 oznacza 40,00 dB.
+     */
+    CFG_PARAM_S21_TLUMIK_DB_X100,
+
+    /*
+     * V2.1: ustawienia diagnostyczne i sposob pracy przycisku enkodera.
+     * Pola sa dopisane na koncu, aby nie zmieniac numerow istniejacych
+     * parametrow zapisanych w config.bin.
+     */
+    CFG_PARAM_DIAGNOSTYKA_VI,       // 0=wyl., 1=poziomy V/I w ekranach diagnostycznych S21
+    CFG_PARAM_PRZYCISK_ENKODERA,    // 0=OK, 1=szybki zrzut ekranu
+
+    /*
+     * S21 PRO: parametry dopisane wyłącznie na końcu konfiguracji. Starszy
+     * config.bin pozostaje zgodny, a brakujące pola dostają bezpieczne wartości
+     * domyślne podczas migracji.
+     */
+    CFG_PARAM_S21_AUTO_FILTR,        // 0=klasyczne auto, 1=automatyczne centrowanie i zawężanie filtru
+    CFG_PARAM_S21_JAKOSC_SKANU,      // 0=szybki, 1=normalny, 2=dokładny
+    CFG_PARAM_S21_SKALA_DB,          // 20/40/60/80 dB pełnej wysokości wykresu
+    CFG_PARAM_S21_NORMALIZUJ,        // 0=wartość bezwzględna, 1=maksimum filtru jako 0 dB
+    CFG_PARAM_S21_DUT_OHM,           // informacja o nominalnej impedancji DUT: 50/75/300/600/910 om
+    CFG_PARAM_S21_POROWNAJ_POPRZEDNI,// 0=wyl., 1=rysuj poprzedni ręczny pomiar jako ślad REF
+    CFG_PARAM_S21_TLO_RX,            // 0=nie mierz tła RX, 1=mierz i pokazuj orientacyjną granicę dynamiki
+    CFG_PARAM_S21_PROFIL_SPEC,       // 0=brak, 1=SFE 5.5MB, 2=OMIG PP-10,7-B2/2 (profil referencyjny)
+
+    /*
+     * V2.1 RFSCAN14: ustawienia lokalne skanera RF. Są dopisane wyłącznie
+     * na końcu konfiguracji. Nie zmieniają kalibracji S11/S21 ani globalnego
+     * tłumienia wejścia liniowego używanego przez tor pomiarowy.
+     */
+    CFG_PARAM_SKANER_RF_CZULOSC,      // 0=niska, 1=normalna, 2=wysoka, 3=auto
+    CFG_PARAM_SKANER_RF_DETEKCJA,     // 0=normalna, 1=słabe sygnały
+    CFG_PARAM_SKANER_RF_USREDNIANIE,  // liczba ramek FFT na punkt: 1/2/4
+    CFG_PARAM_SKANER_RF_SKALA_KOLORU, // 0=auto, 1=stała
+
     //For count of params ---------------------
     CFG_NUM_PARAMS
 } CFG_PARAM_t;
@@ -366,6 +405,10 @@ bool CFG_SD_SprobujPrzywrocic(void);
 void CFG_Init(void);
 uint32_t CFG_GetParam(CFG_PARAM_t param);
 void CFG_SetParam(CFG_PARAM_t param, uint32_t value);
+uint32_t CFG_GetS21TlumikDbX100(void);
+float CFG_GetS21TlumikDb(void);
+bool CFG_UstawS21TlumikDbX100(uint32_t wartosc_x100);
+void CFG_FormatujS21Tlumik(char *bufor, uint32_t rozmiar);
 uint32_t CFG_GetOslRshortMilliOhm(void);
 uint32_t CFG_GetOslRloadMilliOhm(void);
 uint32_t CFG_GetOslRopenMilliOhm(void);

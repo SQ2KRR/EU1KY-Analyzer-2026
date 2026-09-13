@@ -15,6 +15,8 @@ void OSL_CalWnd(void);
 /* 0=anulowano/brak nowej HW, 1=HW OK i powrot, 2=HW OK i Dalej do OSL. */
 uint8_t OSL_CalErrCorr(void);
 void OSL_CalTXCorr(void);
+void OSL_S21_WeryfikacjaWnd(void);
+void OSL_S21_WeryfikacjaSeriaWnd(void);
 
 uint32_t OSL_DokumentacjaLiczbaStron(void);
 const char *OSL_DokumentacjaNazwaStrony(uint32_t strona);

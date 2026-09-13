@@ -25,9 +25,24 @@ typedef enum
     WEJSCIE_ZDARZENIE_START_STOP,
 } WEJSCIE_ZDARZENIE_t;
 
+typedef enum
+{
+    WEJSCIA_PRZYCISK_ENKODERA_OK = 0,
+    WEJSCIA_PRZYCISK_ENKODERA_ZRZUT = 1
+} WEJSCIA_TRYB_PRZYCISKU_ENKODERA_t;
+
 void WEJSCIA_Init(void);
 void WEJSCIA_Aktualizuj(void);
 WEJSCIE_ZDARZENIE_t WEJSCIA_PobierzZdarzenie(void);
 void WEJSCIA_WyczyscZdarzenia(void);
+
+/*
+ * W trybie ZRZUT nacisniecie osi enkodera nie trafia do kolejki jako OK.
+ * Zamiast tego ustawiane jest jednorazowe zadanie zrzutu, odbierane przez
+ * warstwe aplikacji. Rozdziela to obsluge stykow od zapisu na karte SD.
+ */
+void WEJSCIA_UstawTrybPrzyciskuEnkodera(WEJSCIA_TRYB_PRZYCISKU_ENKODERA_t tryb);
+WEJSCIA_TRYB_PRZYCISKU_ENKODERA_t WEJSCIA_PobierzTrybPrzyciskuEnkodera(void);
+uint8_t WEJSCIA_PobierzZadanieZrzutu(void);
 
 #endif /* WEJSCIA_UZYTKOWNIKA_H_ */

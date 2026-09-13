@@ -52,6 +52,7 @@
     [TEKST_MENU_WIELE_PASM] = "Mehrband-SWR",
     [TEKST_MENU_STROJENIE] = "SWR abstimmen",
     [TEKST_MENU_S21] = "S21",
+    [TEKST_ANALIZA_FILTRU] = "Filteranalyse",
     [TEKST_MENU_SZUKAJ_F] = "HF-Scanner",
     [TEKST_MENU_KWARC] = "Quarz",
     [TEKST_MENU_TDR] = "TDR / Kabel",
@@ -409,7 +410,7 @@
     [TEKST_WKLAD_AUTOR_PROJEKTU] = "Autor des ursprünglichen Projekts und der Firmware",
     [TEKST_WKLAD_ROZWOJ_FIRMWARE] = "Firmware- und Messentwicklung",
     [TEKST_WKLAD_ROZSZERZENIA_CEC] = "CEC: L/C, S21 und Digitalmodi",
-    [TEKST_WKLAD_EU1KY_PL] = "PL-Zweig: Konzept, Tests und Entwicklung",
+    [TEKST_WKLAD_EU1KY_PL] = "PL-Zweig: Integration und Entwicklung",
     [TEKST_WKLAD_DOKUMENTACJA] = "Anleitungen und Community-Dokumentation",
     [TEKST_O_PROGRAMIE_DZIEKUJEMY] = "Danke an alle, die diesen Analysator entwickelt und getestet haben.",
     [TEKST_NIEMIECKI] = "Deutsch",
@@ -419,7 +420,7 @@
 
     [TEKST_PODTYTUL_ANALIZATOR_ANTENOWY] = "Antennenanalysator",
     [TEKST_PRZYGOTOWANIE_FUNKCJI] = "Funktion wird vorbereitet...",
-    [TEKST_METROLOGIA_2026_TEST] = "Metrologie 2026 - TEST",
+    [TEKST_METROLOGIA_2026_TEST] = "Metrologie 2026",
 
 /* Launcher UX 2026 - v2.03-test22. */
     [TEKST_DZIAL_POMIAR] = "Messen",
@@ -445,3 +446,6 @@
     [TEKST_POZIOM_FUNKCJI] = "Funktionsumfang",
     [TEKST_KONFIGURACJA_ZAAWANSOWANA] = "Erweiterte Konfiguration",
     [TEKST_STYL_INTERFEJSU] = "Oberflächenstil",
+
+    [TEKST_PRZYCISK_ENKODERA] = "Encoder-Taste: Screenshot",
+    [TEKST_USTAWIENIA_S21] = "S21-Messoptionen",

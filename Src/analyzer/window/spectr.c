@@ -35,6 +35,7 @@
 #include "ui_wspolny.h"
 #include "ui_edytor_liczby.h"
 #include "wejscia_uzytkownika.h"
+#include "stm32746g_discovery_audio.h"
 
 extern int16_t audioBuf[(NSAMPLES + NDUMMY) * 2];
 extern void GEN_SetLOFreq(uint32_t frqu1);
@@ -54,6 +55,11 @@ static void Skaner_WodospadResetujSrednia(void);
 static void Skaner_WodospadZbudujLinie(void);
 static int Skaner_RF_WykonajPrzebiegEnergii(uint8_t pokaz_postep);
 static int Skaner_RF_PrzygotujWodospadNiezaleznie(void);
+static void Skaner_RF_Ustawienia(void);
+static void Skaner_RF_ZastosujCzuloscZKonfiguracji(uint8_t reset_auto);
+static void Skaner_RF_PrzywrocCzuloscPomiarowa(void);
+static void Skaner_RF_FormatujCzulosc(char *bufor, size_t rozmiar);
+static uint32_t Skaner_RF_ProcentADC(void);
 
 #define Fieldw1 70
 #define FieldH 36
@@ -206,6 +212,38 @@ static uint16_t skaner_wodospad_postep_permille;
 static uint32_t skaner_wodospad_postep_f_hz;
 static uint8_t skaner_wodospad_w_trakcie;
 
+/*
+ * RFSCAN14: skaner ma własną, lokalną regulację czułości. Nie zmieniamy
+ * CFG_PARAM_LIN_ATTENUATION, bo ten parametr należy do kalibrowanego toru
+ * pomiarowego. Po wyjściu ze skanera przywracamy dokładnie globalne ustawienie.
+ */
+typedef enum
+{
+    SKANER_CZULOSC_NISKA = 0,
+    SKANER_CZULOSC_NORMALNA = 1,
+    SKANER_CZULOSC_WYSOKA = 2,
+    SKANER_CZULOSC_AUTO = 3
+} SKANER_CZULOSC_t;
+
+typedef enum
+{
+    SKANER_GAIN_NISKI = 0,
+    SKANER_GAIN_NORMALNY = 1,
+    SKANER_GAIN_WYSOKI = 2
+} SKANER_GAIN_t;
+
+static SKANER_GAIN_t skaner_rf_gain_biezacy = SKANER_GAIN_NORMALNY;
+static uint32_t skaner_rf_szczyt_adc;
+static uint8_t skaner_rf_przesterowanie;
+static uint8_t skaner_rf_wzmocnienie_ok = 1U;
+static float skaner_rf_skala_koloru_db;
+
+#define SKANER_RF_ADC_PROG_PRZESTEROWANIA 32000U
+#define SKANER_RF_ADC_PROG_DUZY           26000U
+#define SKANER_RF_ADC_PROG_MALY            6000U
+#define SKANER_RF_ADC_PROG_POWROT_Z_NISKIEJ 12000U
+#define SKANER_RF_DODATKOWE_TLUMIENIE_NISKIE_DB 12U
+
 /* Jedna linia szerokiego skanu powstaje wolno (20 MHz to ponad tysiąc FFT).
  * Trzy piksele wysokości sprawiają, że pierwszy ukończony przebieg jest od razu
  * widoczny na ekranie, bez fałszowania osi częstotliwości. */
@@ -213,14 +251,27 @@ static uint8_t skaner_wodospad_w_trakcie;
 
 /* Stałe detektora energii RF.
  * Nominalne IF około 10 kHz trzyma użyteczny sygnał z dala od DC i przecieku LO.
- * Okno 3..21 kHz wykorzystuje prawie całe użyteczne pasmo audio bez DC.
- * Maksymalny krok 15 kHz daje dla 88..108 MHz około 1334 pomiarów/przebieg,
- * czyli pełne pokrycie bez ogromnego wydłużenia czasu skanu. */
-#define SKANER_RF_IF_DOL_HZ               3000U
-#define SKANER_RF_IF_GORA_HZ             21000U
+ * RFSCAN14 buduje okno symetrycznie wokół rzeczywistej p.cz.; margines od DC
+ * i Nyquista chroni przed skrajnymi prążkami. Maksymalny krok 15 kHz daje dla
+ * 88..108 MHz około 1334 pomiarów/przebieg bez luk w pokryciu. */
+#define SKANER_RF_IF_POL_OKNA_HZ          8000U
+#define SKANER_RF_IF_MARGINES_HZ          1500U
 #define SKANER_RF_KROK_MAX_HZ            15000U
 #define SKANER_RF_MAX_PROBEK_PRZEBIEGU    2400U
 #define SKANER_RF_EMA_NOWA                 0.45f
+
+/*
+ * RFSCAN15: realny mieszacz daje po FFT tylko dodatnia czestotliwosc audio,
+ * dlatego pojedynczy pomiar nie rozroznia RF = LO + f_audio od RF = LO - f_audio.
+ * Po wykryciu klastra wykonujemy dwa krotkie pomiary LO oddalone symetrycznie
+ * o 5 kHz od pozycji nominalnej. Prawdziwa czestotliwosc RF jest ta hipoteza
+ * LO +/- f_audio, ktora zgadza sie w obu pomiarach.
+ */
+#define SKANER_RF_WERYF_LO_ODSTEP_HZ      5000U
+#define SKANER_RF_WERYF_AUDIO_MIN_HZ      1500U
+#define SKANER_RF_WERYF_AUDIO_MAX_HZ     17500U
+#define SKANER_RF_WERYF_CENTROID_BIN        32
+#define SKANER_RF_WERYF_TOLERANCJA_HZ     6000.0
 
 /* RFSCAN6: radiofonia UKF FM wymaga innego detektora niż wąskie nośne.
  * Stacja WFM rozkłada energię na około 150..200 kHz. Punktowy pomiar 10..20 kHz
@@ -544,8 +595,30 @@ void FX_ShowResult(void)
     UI_RysujPoleWartosci(150, 90, 326, 54, JEZYK_Tekst(TEKST_SKANER_RF_CZESTOTLIWOSC), czestotliwosc);
     UI_RysujPoleWartosci(150, 150, 158, 54, JEZYK_Tekst(TEKST_SKANER_RF_SZCZYT_TLO), stosunek);
     UI_RysujPoleWartosci(314, 150, 162, 54, JEZYK_Tekst(TEKST_SKANER_RF_POZIOM), poziom);
-    FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_NIEAKTYWNY), tlo,
-               151, 211, JEZYK_Tekst(TEKST_SKANER_RF_POZIOM_INFO));
+    if (skaner_wynik_energia && skaner_rf_przesterowanie)
+    {
+        FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_OSTRZEZENIE), tlo, 151, 211,
+                   JEZYK_Wybierz("PRZESTEROWANIE ADC - zmniejsz czułość",
+                                 "ADC CLIPPING - reduce sensitivity",
+                                 "ADC CLIPPING - Empfindlichkeit senken",
+                                 "ПЕРЕГРУЗКА ADC - снизьте чувствительность"));
+    }
+    else if (skaner_wynik_energia)
+    {
+        char czulosc[32];
+        char opis[64];
+        Skaner_RF_FormatujCzulosc(czulosc, sizeof(czulosc));
+        snprintf(opis, sizeof(opis),
+                 JEZYK_Wybierz("Czułość: %s | ADC %lu%%", "Sensitivity: %s | ADC %lu%%",
+                               "Empfindl.: %s | ADC %lu%%", "Чувств.: %s | ADC %lu%%"),
+                 czulosc, (unsigned long)Skaner_RF_ProcentADC());
+        FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_NIEAKTYWNY), tlo, 151, 211, opis);
+    }
+    else
+    {
+        FONT_Write(FONT_FRAN, UI_KolorTekstu(UI_STYL_NIEAKTYWNY), tlo,
+                   151, 211, JEZYK_Tekst(TEKST_SKANER_RF_POZIOM_INFO));
+    }
 }
 
 void SetUpperLower(void)
@@ -1088,42 +1161,217 @@ static void Skaner_WodospadZapiszPunkt(int x, float stosunek_db)
     (void)stosunek_db;
 }
 
+
+static uint32_t Skaner_RF_PobierzUsrednianie(void)
+{
+    const uint32_t n = CFG_GetParam(CFG_PARAM_SKANER_RF_USREDNIANIE);
+    return (n == 2U || n == 4U) ? n : 1U;
+}
+
+static uint8_t Skaner_RF_CzySlabeSygnaly(void)
+{
+    return CFG_GetParam(CFG_PARAM_SKANER_RF_DETEKCJA) != 0U;
+}
+
+static uint8_t Skaner_RF_TlumienieDlaGain(SKANER_GAIN_t gain)
+{
+    uint32_t baza = CFG_GetParam(CFG_PARAM_LIN_ATTENUATION);
+    if (baza > 100U)
+        baza = 100U;
+
+    if (gain == SKANER_GAIN_WYSOKI)
+        return 0U;
+    if (gain == SKANER_GAIN_NISKI)
+    {
+        baza += SKANER_RF_DODATKOWE_TLUMIENIE_NISKIE_DB;
+        if (baza > 100U)
+            baza = 100U;
+    }
+    return (uint8_t)baza;
+}
+
+static void Skaner_RF_ZastosujGain(SKANER_GAIN_t gain)
+{
+    const uint8_t tlumienie_db = Skaner_RF_TlumienieDlaGain(gain);
+    const uint8_t glosnosc_wejscia = (uint8_t)(100U - tlumienie_db);
+
+    skaner_rf_wzmocnienie_ok =
+        (BSP_AUDIO_IN_SetVolume(glosnosc_wejscia) == AUDIO_OK) ? 1U : 0U;
+    if (skaner_rf_wzmocnienie_ok)
+        skaner_rf_gain_biezacy = gain;
+}
+
+static void Skaner_RF_ZastosujCzuloscZKonfiguracji(uint8_t reset_auto)
+{
+    const uint32_t tryb = CFG_GetParam(CFG_PARAM_SKANER_RF_CZULOSC);
+
+    if (tryb == SKANER_CZULOSC_NISKA)
+        Skaner_RF_ZastosujGain(SKANER_GAIN_NISKI);
+    else if (tryb == SKANER_CZULOSC_WYSOKA)
+        Skaner_RF_ZastosujGain(SKANER_GAIN_WYSOKI);
+    else if (tryb == SKANER_CZULOSC_AUTO)
+    {
+        /* Auto zmienia gain wyłącznie pomiędzy pełnymi przebiegami. Dzięki temu
+         * jeden wiersz wodospadu ma stałe wzmocnienie na całej osi częstotliwości. */
+        if (reset_auto)
+            skaner_rf_gain_biezacy = SKANER_GAIN_NORMALNY;
+        Skaner_RF_ZastosujGain(skaner_rf_gain_biezacy);
+    }
+    else
+        Skaner_RF_ZastosujGain(SKANER_GAIN_NORMALNY);
+}
+
+static void Skaner_RF_PrzywrocCzuloscPomiarowa(void)
+{
+    uint32_t tlumienie_db = CFG_GetParam(CFG_PARAM_LIN_ATTENUATION);
+    if (tlumienie_db > 100U)
+        tlumienie_db = 100U;
+    (void)BSP_AUDIO_IN_SetVolume((uint8_t)(100U - tlumienie_db));
+    skaner_rf_gain_biezacy = SKANER_GAIN_NORMALNY;
+    skaner_rf_wzmocnienie_ok = 1U;
+}
+
+static void Skaner_RF_AktualizujSzczytADC(void)
+{
+    int16_t *p = &audioBuf[NDUMMY];
+    uint32_t i;
+
+    for (i = 0U; i < NSAMPLES; ++i)
+    {
+        int32_t v = (int32_t)*p;
+        if (v < 0)
+            v = -v;
+        if ((uint32_t)v > skaner_rf_szczyt_adc)
+            skaner_rf_szczyt_adc = (uint32_t)v;
+        p += 2;
+    }
+
+    if (skaner_rf_szczyt_adc >= SKANER_RF_ADC_PROG_PRZESTEROWANIA)
+        skaner_rf_przesterowanie = 1U;
+}
+
+static uint32_t Skaner_RF_ProcentADC(void)
+{
+    uint32_t procent = (skaner_rf_szczyt_adc * 100U + 16383U) / 32767U;
+    if (procent > 100U)
+        procent = 100U;
+    return procent;
+}
+
+static void Skaner_RF_AutoDobierzCzulosc(void)
+{
+    SKANER_GAIN_t nowy = skaner_rf_gain_biezacy;
+
+    if (CFG_GetParam(CFG_PARAM_SKANER_RF_CZULOSC) != SKANER_CZULOSC_AUTO)
+        return;
+
+    if (skaner_rf_przesterowanie || skaner_rf_szczyt_adc >= SKANER_RF_ADC_PROG_PRZESTEROWANIA)
+    {
+        /* Przy rzeczywistym nasyceniu od razu schodzimy do bezpiecznego poziomu.
+         * Następny pełny przebieg pokaże, czy można wrócić wyżej. */
+        nowy = SKANER_GAIN_NISKI;
+    }
+    else if (skaner_rf_szczyt_adc >= SKANER_RF_ADC_PROG_DUZY)
+    {
+        if (skaner_rf_gain_biezacy == SKANER_GAIN_WYSOKI)
+            nowy = SKANER_GAIN_NORMALNY;
+    }
+    else if (skaner_rf_szczyt_adc < SKANER_RF_ADC_PROG_MALY)
+    {
+        nowy = SKANER_GAIN_WYSOKI;
+    }
+    else if (skaner_rf_gain_biezacy == SKANER_GAIN_NISKI &&
+             skaner_rf_szczyt_adc < SKANER_RF_ADC_PROG_POWROT_Z_NISKIEJ)
+    {
+        nowy = SKANER_GAIN_NORMALNY;
+    }
+
+    if (nowy != skaner_rf_gain_biezacy)
+        Skaner_RF_ZastosujGain(nowy);
+}
+
+static float Skaner_RF_ProgObrazuDb(uint8_t fm)
+{
+    if (fm)
+        return Skaner_RF_CzySlabeSygnaly() ? 0.15f : SKANER_FM_PROG_NAD_TLEM_DB;
+    return Skaner_RF_CzySlabeSygnaly() ? 1.0f : SKANER_WODOSPAD_PROG_NAD_TLEM_DB;
+}
+
+static float Skaner_RF_ProgStacjiDb(uint8_t fm)
+{
+    if (fm)
+        return Skaner_RF_CzySlabeSygnaly() ? 0.45f : SKANER_FM_PROG_STACJI_DB;
+    return Skaner_RF_CzySlabeSygnaly() ? 1.8f : SKANER_WODOSPAD_PROG_STACJI_DB;
+}
+
+static float Skaner_RF_ProgPunktDb(uint8_t fm)
+{
+    if (fm)
+        return Skaner_RF_CzySlabeSygnaly() ? 1.1f : SKANER_FM_PROG_PUNKT_DB;
+    return Skaner_RF_CzySlabeSygnaly() ? 4.0f : SKANER_WODOSPAD_PROG_PUNKT_DB;
+}
+
 /*
  * Miernik energii w stałym oknie IF.
  *
- * Dla badanego punktu RF ustawiamy LO o rzeczywiste IF toru niżej. Sygnał z tego punktu
- * pojawia się więc w środku okna 3..15 kHz, z dala od DC i przecieku LO.
- * Zamiast wybierać największy z ~190 losowych prążków uśredniamy kwadrat
- * amplitudy prawie całego użytecznego pasma FFT. Dla szumu wariancja spada bardzo mocno, natomiast
- * szeroka stacja FM podnosi energię w sposób trwały.
+ * Dla badanego punktu RF ustawiamy LO o rzeczywiste IF toru niżej. Sygnał z tego
+ * punktu pojawia się więc w środku symetrycznego okna wokół p.cz., z dala od DC.
+ * Zamiast wybierać największy z wielu losowych prążków uśredniamy kwadrat
+ * amplitudy w całym oknie. Dla szumu wariancja maleje, natomiast szeroka stacja
+ * FM podnosi energię w sposób trwały.
  */
 static float Skaner_RF_MierzMocOknaDb(uint32_t czestotliwosc_rf_hz)
 {
-    const int bin_dol = (int)ceilf((float)SKANER_RF_IF_DOL_HZ / SKANER_BIN_HZ);
-    const int bin_gora = (int)floorf((float)SKANER_RF_IF_GORA_HZ / SKANER_BIN_HZ);
     const uint32_t if_srodek_hz = DSP_GetIF();
+    const uint32_t nyquist_hz = FSAMPLE / 2U;
+    uint32_t if_dol_hz = (if_srodek_hz > SKANER_RF_IF_POL_OKNA_HZ) ?
+                         (if_srodek_hz - SKANER_RF_IF_POL_OKNA_HZ) :
+                         SKANER_RF_IF_MARGINES_HZ;
+    uint32_t if_gora_hz = if_srodek_hz + SKANER_RF_IF_POL_OKNA_HZ;
+    const uint32_t usrednianie = Skaner_RF_PobierzUsrednianie();
     uint32_t lo_hz;
     float suma_mocy = 0.0f;
     uint32_t liczba = 0U;
+    uint32_t ramka;
+    int bin_dol;
+    int bin_gora;
     int n;
 
     if (rfft_mags == 0)
         return NAN;
 
+    /* RFSCAN14: okno IF jest symetryczne względem rzeczywistej częstotliwości
+     * pośredniej DSP. Dawne 3..21 kHz miało środek 12 kHz i wprowadzało
+     * niewielkie, ale systematyczne przesunięcie centroidu wąskiej nośnej. */
+    if (if_dol_hz < SKANER_RF_IF_MARGINES_HZ)
+        if_dol_hz = SKANER_RF_IF_MARGINES_HZ;
+    if (if_gora_hz + SKANER_RF_IF_MARGINES_HZ > nyquist_hz)
+        if_gora_hz = nyquist_hz - SKANER_RF_IF_MARGINES_HZ;
+    if (if_gora_hz <= if_dol_hz)
+        return NAN;
+
+    bin_dol = (int)ceilf((float)if_dol_hz / SKANER_BIN_HZ);
+    bin_gora = (int)floorf((float)if_gora_hz / SKANER_BIN_HZ);
+
     lo_hz = (czestotliwosc_rf_hz > if_srodek_hz) ?
                 (czestotliwosc_rf_hz - if_srodek_hz) :
                 czestotliwosc_rf_hz;
     GEN_SetLOFreq(lo_hz);
-    DSP_Sample();
-    Calc_fft_audiobuf(0);
 
-    for (n = bin_dol; n <= bin_gora && n < (NSAMPLES / 2); ++n)
+    for (ramka = 0U; ramka < usrednianie; ++ramka)
     {
-        const float a = fabsf(rfft_mags[n]);
-        if (!isfinite(a))
-            continue;
-        suma_mocy += a * a;
-        liczba++;
+        DSP_Sample();
+        Skaner_RF_AktualizujSzczytADC();
+        Calc_fft_audiobuf(0);
+
+        for (n = bin_dol; n <= bin_gora && n < (NSAMPLES / 2); ++n)
+        {
+            const float a = fabsf(rfft_mags[n]);
+            if (!isfinite(a))
+                continue;
+            suma_mocy += a * a;
+            liczba++;
+        }
     }
 
     if (liczba == 0U || !(suma_mocy > 0.0f) || !isfinite(suma_mocy))
@@ -1376,8 +1624,10 @@ static void Skaner_WodospadPrzetworzFM(float mediana_globalna)
 static uint16_t Skaner_WodospadPoziomZDb(float db)
 {
     const uint8_t fm = Skaner_RF_CzyTrybFM();
-    const float prog = fm ? SKANER_FM_PROG_NAD_TLEM_DB : SKANER_WODOSPAD_PROG_NAD_TLEM_DB;
-    const float pelna = fm ? SKANER_FM_DB_PELNA_SKALA : SKANER_WODOSPAD_DB_PELNA_SKALA;
+    const float prog = Skaner_RF_ProgObrazuDb(fm);
+    const float nominalna = fm ? SKANER_FM_DB_PELNA_SKALA : SKANER_WODOSPAD_DB_PELNA_SKALA;
+    const float pelna = (skaner_rf_skala_koloru_db > 0.05f) ?
+                        skaner_rf_skala_koloru_db : nominalna;
 
     if (!isfinite(db) || db <= prog)
         return 0U;
@@ -1409,6 +1659,17 @@ static uint32_t Skaner_WodospadXNaCzestotliwosc(uint16_t x)
                       (zakres * (uint64_t)x) / (uint64_t)(UI_WODOSPAD_SZEROKOSC - 1U));
 }
 
+static uint16_t Skaner_WodospadCzestotliwoscNaX(uint32_t hz)
+{
+    const uint64_t zakres = (upper > lower) ? ((uint64_t)upper - (uint64_t)lower) : 0ULL;
+    if (zakres == 0ULL || hz <= lower)
+        return 0U;
+    if (hz >= upper)
+        return (uint16_t)(UI_WODOSPAD_SZEROKOSC - 1U);
+    return (uint16_t)(((uint64_t)(hz - lower) *
+                      (uint64_t)(UI_WODOSPAD_SZEROKOSC - 1U)) / zakres);
+}
+
 static void Skaner_WodospadDodajMarker(uint16_t x, float db)
 {
     uint8_t i;
@@ -1438,6 +1699,206 @@ static void Skaner_WodospadDodajMarker(uint16_t x, float db)
     }
 }
 
+
+/*
+ * RFSCAN15: pomiar czestotliwosci audio dla jednej, zadanej pozycji LO.
+ *
+ * Zamiast zakladac z gory, po ktorej stronie heterodyny znajduje sie RF,
+ * zwracamy tylko dodatnia odleglosc |RF-LO|. Dopiero drugi pomiar LO pozwala
+ * rozstrzygnac znak. Centroid mocy po odjeciu tla ogranicza zaleznosc wyniku
+ * od pojedynczego prazka FFT i od chwilowej modulacji NFM.
+ */
+static uint8_t Skaner_RF_ZmierzAudioDlaLO(uint32_t lo_hz, float *audio_hz)
+{
+    float moc[SKANER_BIN_MAX + 1];
+    uint32_t ramki = Skaner_RF_PobierzUsrednianie();
+    const int bin_min = (int)ceilf((float)SKANER_RF_WERYF_AUDIO_MIN_HZ / SKANER_BIN_HZ);
+    int bin_max = (int)floorf((float)SKANER_RF_WERYF_AUDIO_MAX_HZ / SKANER_BIN_HZ);
+    uint32_t r;
+    int i;
+    int kmax;
+    int c0;
+    int c1;
+    float maxp = -1.0f;
+    float tlo = 0.0f;
+    uint32_t ntlo = 0U;
+    float suma_wag = 0.0f;
+    float suma_bin = 0.0f;
+
+    if (audio_hz == 0 || rfft_mags == 0 || lo_hz == 0U)
+        return 0U;
+
+    if (ramki < 2U)
+        ramki = 2U;
+    if (ramki > 4U)
+        ramki = 4U;
+    if (bin_max > SKANER_BIN_MAX)
+        bin_max = SKANER_BIN_MAX;
+    if (bin_max <= bin_min + 8)
+        return 0U;
+
+    for (i = 0; i <= SKANER_BIN_MAX; ++i)
+        moc[i] = 0.0f;
+
+    GEN_SetLOFreq(lo_hz);
+    Sleep(1U);
+
+    for (r = 0U; r < ramki; ++r)
+    {
+        DSP_Sample();
+        Skaner_RF_AktualizujSzczytADC();
+        Calc_fft_audiobuf(0);
+        for (i = bin_min; i <= bin_max; ++i)
+        {
+            const float a = fabsf(rfft_mags[i]);
+            if (isfinite(a))
+                moc[i] += a * a;
+        }
+    }
+
+    kmax = bin_min;
+    for (i = bin_min; i <= bin_max; ++i)
+    {
+        moc[i] /= (float)ramki;
+        if (moc[i] > maxp)
+        {
+            maxp = moc[i];
+            kmax = i;
+        }
+    }
+    if (!(maxp > 0.0f) || !isfinite(maxp))
+        return 0U;
+
+    /* Tlo omija szerokie sasiedztwo maksimum, aby modulacja NFM nie zostala
+     * policzona jako szum odniesienia. */
+    for (i = bin_min; i <= bin_max; ++i)
+    {
+        if (abs(i - kmax) <= (SKANER_RF_WERYF_CENTROID_BIN + 6))
+            continue;
+        if (!isfinite(moc[i]))
+            continue;
+        tlo += moc[i];
+        ntlo++;
+    }
+    if (ntlo > 0U)
+        tlo /= (float)ntlo;
+    else
+        tlo = 0.0f;
+
+    if (tlo > 0.0f && maxp < 2.0f * tlo)
+        return 0U;
+
+    c0 = kmax - SKANER_RF_WERYF_CENTROID_BIN;
+    c1 = kmax + SKANER_RF_WERYF_CENTROID_BIN;
+    if (c0 < bin_min) c0 = bin_min;
+    if (c1 > bin_max) c1 = bin_max;
+
+    for (i = c0; i <= c1; ++i)
+    {
+        float w = moc[i] - tlo;
+        if (!isfinite(w) || w <= 0.0f)
+            continue;
+        suma_wag += w;
+        suma_bin += w * (float)i;
+    }
+    if (!(suma_wag > 0.0f) || !isfinite(suma_wag))
+        return 0U;
+
+    *audio_hz = (suma_bin / suma_wag) * SKANER_BIN_HZ;
+    if (!isfinite(*audio_hz) ||
+        *audio_hz < (float)SKANER_RF_WERYF_AUDIO_MIN_HZ ||
+        *audio_hz > (float)SKANER_RF_WERYF_AUDIO_MAX_HZ)
+        return 0U;
+
+    return 1U;
+}
+
+/*
+ * RFSCAN15: rozstrzyganie strony mieszacza dwoma pozycjami LO.
+ *
+ * Dla kazdego pomiaru istnieja dwie hipotezy:
+ *      RF = LO + f_audio
+ *      RF = LO - f_audio
+ * Po przesunieciu LO o 10 kHz lacznie tylko jedna para hipotez pozostaje ta
+ * sama. Srednia tej zgodnej pary jest wynikiem. Metoda usuwa obserwowany na
+ * sprzecie efekt: 145,000 MHz bylo pokazywane jako ok. 145,011 MHz, czyli
+ * srodek dwoch odpowiedzi mieszacza oddalonych o ok. 2*IF.
+ */
+static uint8_t Skaner_RF_DoprecyzujCzestotliwosc(uint32_t przyblizona_hz,
+                                                  uint32_t *wynik_hz)
+{
+    const uint32_t if_hz = DSP_GetIF();
+    uint32_t lo_srodek;
+    uint32_t lo_a;
+    uint32_t lo_b;
+    float audio_a;
+    float audio_b;
+    double kand_a[2];
+    double kand_b[2];
+    double najlepsza_roznica = INFINITY;
+    double najlepszy_a = 0.0;
+    double najlepszy_b = 0.0;
+    double wynik;
+    int ia;
+    int ib;
+
+    if (wynik_hz == 0 || rfft_mags == 0)
+        return 0U;
+    if (przyblizona_hz <= if_hz + SKANER_RF_WERYF_LO_ODSTEP_HZ)
+        return 0U;
+
+    lo_srodek = przyblizona_hz - if_hz;
+    if (lo_srodek <= SKANER_RF_WERYF_LO_ODSTEP_HZ ||
+        lo_srodek > UINT32_MAX - SKANER_RF_WERYF_LO_ODSTEP_HZ)
+        return 0U;
+
+    lo_a = lo_srodek - SKANER_RF_WERYF_LO_ODSTEP_HZ;
+    lo_b = lo_srodek + SKANER_RF_WERYF_LO_ODSTEP_HZ;
+
+    if (!Skaner_RF_ZmierzAudioDlaLO(lo_a, &audio_a))
+        return 0U;
+    if (!Skaner_RF_ZmierzAudioDlaLO(lo_b, &audio_b))
+        return 0U;
+
+    kand_a[0] = (double)lo_a + (double)audio_a;
+    kand_a[1] = (double)lo_a - (double)audio_a;
+    kand_b[0] = (double)lo_b + (double)audio_b;
+    kand_b[1] = (double)lo_b - (double)audio_b;
+
+    for (ia = 0; ia < 2; ++ia)
+    {
+        for (ib = 0; ib < 2; ++ib)
+        {
+            const double d = fabs(kand_a[ia] - kand_b[ib]);
+            const double srednia = 0.5 * (kand_a[ia] + kand_b[ib]);
+
+            if (srednia < (double)lower || srednia > (double)upper)
+                continue;
+            if (fabs(srednia - (double)przyblizona_hz) >
+                (double)(2U * if_hz + 8000U))
+                continue;
+
+            if (d < najlepsza_roznica)
+            {
+                najlepsza_roznica = d;
+                najlepszy_a = kand_a[ia];
+                najlepszy_b = kand_b[ib];
+            }
+        }
+    }
+
+    if (!isfinite(najlepsza_roznica) ||
+        najlepsza_roznica > SKANER_RF_WERYF_TOLERANCJA_HZ)
+        return 0U;
+
+    wynik = 0.5 * (najlepszy_a + najlepszy_b);
+    if (!isfinite(wynik) || wynik < 0.0 || wynik > (double)UINT32_MAX)
+        return 0U;
+
+    *wynik_hz = (uint32_t)llround(wynik);
+    return 1U;
+}
+
 /*
  * Łączymy sąsiednie punkty ponad tłem w jedną stację/nośną. Dla WFM daje to
  * szeroki pionowy pas i marker w środku energetycznym zamiast losowego piku
@@ -1448,8 +1909,8 @@ static void Skaner_WodospadWyznaczMarkery(void)
 {
     uint16_t x = 0U;
     const uint8_t fm = Skaner_RF_CzyTrybFM();
-    const float prog_stacji = fm ? SKANER_FM_PROG_STACJI_DB : SKANER_WODOSPAD_PROG_STACJI_DB;
-    const float prog_punkt = fm ? SKANER_FM_PROG_PUNKT_DB : SKANER_WODOSPAD_PROG_PUNKT_DB;
+    const float prog_stacji = Skaner_RF_ProgStacjiDb(fm);
+    const float prog_punkt = Skaner_RF_ProgPunktDb(fm);
     uint16_t min_szerokosc = 2U;
 
     if (fm && upper > lower)
@@ -1529,6 +1990,19 @@ static void Skaner_WodospadWyznaczMarkery(void)
             if (skaner_wodospad_markery_db[i] > skaner_wodospad_markery_db[naj])
                 naj = i;
         fx = Skaner_WodospadXNaCzestotliwosc(skaner_wodospad_markery_x[naj]);
+        if (!fm)
+        {
+            uint32_t dokladna_hz;
+            if (Skaner_RF_DoprecyzujCzestotliwosc(fx, &dokladna_hz))
+            {
+                fx = dokladna_hz;
+                /* Kreska markera ma wskazywac ten sam, zweryfikowany RF co
+                 * wynik liczbowy. Sama mapa kolorow pozostaje surowym obrazem
+                 * odpowiedzi mieszacza i dlatego moze pokazac rowniez obraz. */
+                skaner_wodospad_markery_x[naj] =
+                    Skaner_WodospadCzestotliwoscNaX(dokladna_hz);
+            }
+        }
         binx = 0;
         Maxmag = 1.0f; /* znacznik ważności dla starszego UI; nie jest amplitudą */
         skaner_ostatni_stosunek_db = skaner_wodospad_markery_db[naj];
@@ -1634,8 +2108,43 @@ static void Skaner_FM_ZbudujMapeKanalow(void)
         for (i = 1U; i < skaner_wodospad_liczba_markerow; ++i)
             if (skaner_wodospad_markery_db[i] > skaner_wodospad_markery_db[naj])
                 naj = i;
-        fx = Skaner_WodospadXNaCzestotliwosc(skaner_wodospad_markery_x[naj]);
+        /* Marker jest narysowany w najblizszym pikselu, lecz wynik liczbowy
+         * nie moze byc ponownie kwantowany rozdzielczoscia 480-pikselowej osi.
+         * RFSCAN14 potrafil przez to pokazac 100,860 MHz dla kanalu 100,9 MHz. */
+        fx = Skaner_FM_ZaokraglijRaster(
+                 Skaner_WodospadXNaCzestotliwosc(skaner_wodospad_markery_x[naj]));
     }
+}
+
+static void Skaner_RF_UstalSkaleKoloru(void)
+{
+    const uint8_t fm = Skaner_RF_CzyTrybFM();
+    const float nominalna = fm ? SKANER_FM_DB_PELNA_SKALA : SKANER_WODOSPAD_DB_PELNA_SKALA;
+    const float minimalna = fm ? 1.5f : 3.0f;
+    const float prog = Skaner_RF_ProgObrazuDb(fm);
+    float maksimum = 0.0f;
+    float pelna;
+    uint16_t x;
+
+    if (CFG_GetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU) != 0U)
+    {
+        skaner_rf_skala_koloru_db = nominalna;
+        return;
+    }
+
+    for (x = 0U; x < UI_WODOSPAD_SZEROKOSC; ++x)
+    {
+        const float v = skaner_wodospad_nad_tlem_db[x];
+        if (isfinite(v) && v > maksimum)
+            maksimum = v;
+    }
+
+    pelna = maksimum - prog;
+    if (pelna < minimalna)
+        pelna = minimalna;
+    if (pelna > nominalna)
+        pelna = nominalna;
+    skaner_rf_skala_koloru_db = pelna;
 }
 
 static void Skaner_WodospadZbudujLinie(void)
@@ -1700,6 +2209,10 @@ static void Skaner_WodospadZbudujLinie(void)
     Skaner_WodospadWyznaczMarkery();
     if (Skaner_RF_CzyTrybFM())
         Skaner_FM_ZbudujMapeKanalow();
+
+    /* Skala Auto zmienia wyłącznie odwzorowanie dB -> kolor. Nie obniża
+     * progu detekcji i nie może tworzyć stacji z samego szumu. */
+    Skaner_RF_UstalSkaleKoloru();
 
     /* Łagodne 1-2-1 w osi częstotliwości usuwa ząbki bez rozmywania WFM. */
     for (x = 1U; x + 1U < UI_WODOSPAD_SZEROKOSC; ++x)
@@ -1792,6 +2305,8 @@ static int Skaner_RF_WykonajPrzebiegEnergii(uint8_t pokaz_postep)
         liczba_probek = 2U;
 
     Skaner_WodospadResetujProbki();
+    skaner_rf_szczyt_adc = 0U;
+    skaner_rf_przesterowanie = 0U;
 
     for (i = 0U; i < liczba_probek; ++i)
     {
@@ -1851,6 +2366,9 @@ static int Skaner_RF_WykonajPrzebiegEnergii(uint8_t pokaz_postep)
         }
     }
 
+    /* Auto dobiera wzmocnienie dopiero po ukończeniu całego przebiegu.
+     * Bieżący wiersz wodospadu został więc zmierzony jednym, stałym gainem. */
+    Skaner_RF_AutoDobierzCzulosc();
     return 1;
 }
 
@@ -2383,7 +2901,7 @@ static void Skaner_WodospadRysujDane(void)
     SKANER_WYNIK_t wynik = Skaner_PobierzWynik();
     char czestotliwosc[28] = "---";
     char stosunek[16] = "--";
-    char poziom[40];
+    char poziom[64];
     char zakres_dol[24];
     char zakres_gora[24];
     char zakres[56];
@@ -2399,9 +2917,23 @@ static void Skaner_WodospadRysujDane(void)
             snprintf(stosunek, sizeof(stosunek), ">60");
 
         if (skaner_wynik_energia)
-            snprintf(poziom, sizeof(poziom), "%s",
-                     JEZYK_Wybierz("Poziom: względny", "Level: relative",
-                                   "Pegel: relativ", "Уровень: относит."));
+        {
+            char czulosc[28];
+            char adc[24];
+            Skaner_RF_FormatujCzulosc(czulosc, sizeof(czulosc));
+            if (!skaner_rf_wzmocnienie_ok)
+                snprintf(adc, sizeof(adc), "%s",
+                         JEZYK_Wybierz("GAIN BŁĄD", "GAIN ERR", "GAIN FEHLER", "ОШИБКА GAIN"));
+            else if (skaner_rf_przesterowanie)
+                snprintf(adc, sizeof(adc), "%s",
+                         JEZYK_Wybierz("ADC PRZEST.", "ADC CLIP", "ADC CLIP", "ADC ПЕРЕГР."));
+            else
+                snprintf(adc, sizeof(adc), "ADC %lu%%", (unsigned long)Skaner_RF_ProcentADC());
+            snprintf(poziom, sizeof(poziom),
+                     JEZYK_Wybierz("Cz: %s | %s", "Sens: %s | %s",
+                                   "Empf: %s | %s", "Чувст: %s | %s"),
+                     czulosc, adc);
+        }
         else if (isfinite(wynik.moc_dbm))
             snprintf(poziom, sizeof(poziom),
                      JEZYK_Wybierz("Poziom: ~%.1f dBm (orient.)",
@@ -2738,6 +3270,149 @@ void SPECTR_DokumentacjaWodospadPelny(uint32_t fmin_hz, uint32_t fmax_hz)
     upper = stare_upper;
 }
 
+
+static void Skaner_RF_FormatujCzulosc(char *bufor, size_t rozmiar)
+{
+    const uint32_t tryb = CFG_GetParam(CFG_PARAM_SKANER_RF_CZULOSC);
+    const char *gain;
+
+    if (bufor == 0 || rozmiar == 0U)
+        return;
+
+    if (skaner_rf_gain_biezacy == SKANER_GAIN_WYSOKI)
+        gain = JEZYK_Wybierz("wysoka", "high", "hoch", "высокая");
+    else if (skaner_rf_gain_biezacy == SKANER_GAIN_NISKI)
+        gain = JEZYK_Wybierz("niska", "low", "niedrig", "низкая");
+    else
+        gain = JEZYK_Wybierz("normalna", "normal", "normal", "нормальная");
+
+    if (tryb == SKANER_CZULOSC_AUTO)
+        snprintf(bufor, rozmiar, "%s [%s]",
+                 JEZYK_Wybierz("Auto", "Auto", "Auto", "Авто"), gain);
+    else if (tryb == SKANER_CZULOSC_WYSOKA)
+        snprintf(bufor, rozmiar, "%s", JEZYK_Wybierz("Wysoka", "High", "Hoch", "Высокая"));
+    else if (tryb == SKANER_CZULOSC_NISKA)
+        snprintf(bufor, rozmiar, "%s", JEZYK_Wybierz("Niska", "Low", "Niedrig", "Низкая"));
+    else
+        snprintf(bufor, rozmiar, "%s", JEZYK_Wybierz("Normalna", "Normal", "Normal", "Нормальная"));
+}
+
+static void Skaner_RF_RysujUstawienia(void)
+{
+    UI_AKCJA_t akcje[1];
+    char wartosc[48];
+    char usrednianie[16];
+
+    UI_WyczyscEkran();
+    UI_RysujNaglowek(JEZYK_Wybierz("Skaner RF - ustawienia", "RF scanner - settings",
+                                   "HF-Scanner - Einstellungen", "ВЧ-сканер - настройки"));
+
+    Skaner_RF_FormatujCzulosc(wartosc, sizeof(wartosc));
+    UI_RysujPoleWartosci(4U, 38U, 472U, 39U,
+                         JEZYK_Wybierz("Czułość wejścia", "Input sensitivity",
+                                       "Eingangsempfindlichkeit", "Чувствительность входа"),
+                         wartosc);
+
+    snprintf(wartosc, sizeof(wartosc), "%s",
+             CFG_GetParam(CFG_PARAM_SKANER_RF_DETEKCJA) ?
+             JEZYK_Wybierz("Słabe sygnały", "Weak signals", "Schwache Signale", "Слабые сигналы") :
+             JEZYK_Wybierz("Normalna", "Normal", "Normal", "Нормальная"));
+    UI_RysujPoleWartosci(4U, 82U, 472U, 39U,
+                         JEZYK_Wybierz("Detekcja", "Detection", "Erkennung", "Детектор"), wartosc);
+
+    snprintf(usrednianie, sizeof(usrednianie), "%lux", (unsigned long)Skaner_RF_PobierzUsrednianie());
+    UI_RysujPoleWartosci(4U, 126U, 472U, 39U,
+                         JEZYK_Wybierz("Uśrednianie FFT", "FFT averaging", "FFT-Mittelung", "Усреднение FFT"),
+                         usrednianie);
+
+    snprintf(wartosc, sizeof(wartosc), "%s",
+             CFG_GetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU) ?
+             JEZYK_Wybierz("Stała", "Fixed", "Fest", "Фиксированная") :
+             JEZYK_Wybierz("Auto", "Auto", "Auto", "Авто"));
+    UI_RysujPoleWartosci(4U, 170U, 472U, 39U,
+                         JEZYK_Wybierz("Skala kolorów", "Colour scale", "Farbskala", "Шкала цветов"),
+                         wartosc);
+
+    akcje[0] = (UI_AKCJA_t){1, JEZYK_Wybierz("Wstecz", "Back", "Zurück", "Назад"),
+                            UI_STYL_POWROT, true, false};
+    UI_RysujPasekAkcji(220U, 48U, akcje, 1U);
+}
+
+static void Skaner_RF_Ustawienia(void)
+{
+    uint8_t wyjdz = 0U;
+    uint8_t zmiana = 0U;
+
+    while (TOUCH_IsPressed())
+        ;
+    Sleep(60U);
+    Skaner_RF_RysujUstawienia();
+
+    while (!wyjdz)
+    {
+        const WEJSCIE_ZDARZENIE_t zdarzenie = WEJSCIA_PobierzZdarzenie();
+        LCDPoint punkt;
+
+        if (zdarzenie == WEJSCIE_ZDARZENIE_WSTECZ)
+            break;
+
+        if (!TOUCH_Poll(&punkt))
+        {
+            Sleep(15U);
+            continue;
+        }
+
+        while (TOUCH_IsPressed())
+            ;
+        Sleep(40U);
+
+        if (punkt.y >= 38U && punkt.y <= 77U)
+        {
+            uint32_t tryb = CFG_GetParam(CFG_PARAM_SKANER_RF_CZULOSC);
+            /* Kolejność jest użytkowa, nie numeryczna: Auto -> Wysoka ->
+             * Normalna -> Niska -> Auto. */
+            if (tryb == SKANER_CZULOSC_AUTO) tryb = SKANER_CZULOSC_WYSOKA;
+            else if (tryb == SKANER_CZULOSC_WYSOKA) tryb = SKANER_CZULOSC_NORMALNA;
+            else if (tryb == SKANER_CZULOSC_NORMALNA) tryb = SKANER_CZULOSC_NISKA;
+            else tryb = SKANER_CZULOSC_AUTO;
+            CFG_SetParam(CFG_PARAM_SKANER_RF_CZULOSC, tryb);
+            Skaner_RF_ZastosujCzuloscZKonfiguracji(1U);
+            zmiana = 1U;
+        }
+        else if (punkt.y >= 82U && punkt.y <= 121U)
+        {
+            CFG_SetParam(CFG_PARAM_SKANER_RF_DETEKCJA,
+                         CFG_GetParam(CFG_PARAM_SKANER_RF_DETEKCJA) ? 0U : 1U);
+            zmiana = 1U;
+        }
+        else if (punkt.y >= 126U && punkt.y <= 165U)
+        {
+            uint32_t n = Skaner_RF_PobierzUsrednianie();
+            n = (n == 1U) ? 2U : ((n == 2U) ? 4U : 1U);
+            CFG_SetParam(CFG_PARAM_SKANER_RF_USREDNIANIE, n);
+            zmiana = 1U;
+        }
+        else if (punkt.y >= 170U && punkt.y <= 209U)
+        {
+            CFG_SetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU,
+                         CFG_GetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU) ? 0U : 1U);
+            zmiana = 1U;
+        }
+        else if (punkt.y >= 220U)
+        {
+            wyjdz = 1U;
+        }
+
+        if (!wyjdz)
+            Skaner_RF_RysujUstawienia();
+    }
+
+    if (zmiana && CFG_CzyKartaSDDostepna())
+        (void)CFG_FlushSprawdzony();
+
+    Skaner_RysujEkranGlowny();
+}
+
 static TEXTBOX_CTX_t *skaner_ctx_aktywny;
 
 static TEXTBOX_t tb_Scan[] = {
@@ -2747,15 +3422,18 @@ static TEXTBOX_t tb_Scan[] = {
     (TEXTBOX_t){.x0 = 4, .y0 = 128, .tekst_id = TEXTBOX_TEKST(TEKST_SKANER_RF_WYBRANY_ZAKRES), .font = FONT_FRAN,
                 .width = 138, .height = 34, .center = 1, .border = 1, .fgcolor = LCD_WHITE, .bgcolor = LCD_BLACK,
                 .cb = (void (*)(void))OneBand, .cbparam = 1, .next = (void *)&tb_Scan[2]},
+    (TEXTBOX_t){.x0 = 4, .y0 = 168, .tekst_id = TEXTBOX_TEKST(TEKST_SKANER_RF_AUTO), .font = FONT_FRAN,
+                .width = 138, .height = 34, .center = 1, .border = 1, .fgcolor = LCD_WHITE, .bgcolor = LCD_BLACK,
+                .cb = (void (*)(void))Skaner_RF_Ustawienia, .cbparam = 1, .next = (void *)&tb_Scan[3]},
     (TEXTBOX_t){.x0 = 0, .y0 = UI_DOLNY_PASEK_Y, .tekst_id = TEXTBOX_TEKST(TEKST_WSTECZ), .rola = TEXTBOX_ROLA_WSTECZ,
                 .font = FONT_FRAN, .width = UI_DOLNY_PRZYCISK_SZEROKOSC, .height = UI_DOLNY_PRZYCISK_WYSOKOSC, .center = 1, .border = 1, .fgcolor = LCD_WHITE, .bgcolor = LCD_RED,
-                .cb = (void (*)(void))SCExit, .cbparam = 1, .next = (void *)&tb_Scan[3]},
+                .cb = (void (*)(void))SCExit, .cbparam = 1, .next = (void *)&tb_Scan[4]},
     (TEXTBOX_t){.x0 = 82, .y0 = UI_DOLNY_PASEK_Y, .tekst_id = TEXTBOX_TEKST(TEKST_SKANER_RF_AUTO), .font = FONT_FRAN,
                 .width = 128, .height = UI_DOLNY_PRZYCISK_WYSOKOSC, .center = 1, .border = 1, .fgcolor = LCD_WHITE, .bgcolor = LCD_BLACK,
-                .cb = (void (*)(void))Skaner_UstawOdDo, .cbparam = 1, .next = (void *)&tb_Scan[4]},
+                .cb = (void (*)(void))Skaner_UstawOdDo, .cbparam = 1, .next = (void *)&tb_Scan[5]},
     (TEXTBOX_t){.x0 = 216, .y0 = UI_DOLNY_PASEK_Y, .tekst_id = TEXTBOX_TEKST(TEKST_ZAKRES), .font = FONT_FRAN,
                 .width = 128, .height = UI_DOLNY_PRZYCISK_WYSOKOSC, .center = 1, .border = 1, .fgcolor = LCD_WHITE, .bgcolor = LCD_BLACK,
-                .cb = (void (*)(void))freq, .cbparam = 1, .next = (void *)&tb_Scan[5]},
+                .cb = (void (*)(void))freq, .cbparam = 1, .next = (void *)&tb_Scan[6]},
     (TEXTBOX_t){.x0 = 350, .y0 = UI_DOLNY_PASEK_Y, .tekst_id = TEXTBOX_TEKST(TEKST_SKANER_RF_WIDMO), .rola = TEXTBOX_ROLA_START_STOP,
                 .font = FONT_FRAN, .width = 128, .height = UI_DOLNY_PRZYCISK_WYSOKOSC, .center = 1, .border = 1, .fgcolor = LCD_BLACK, .bgcolor = LCD_YELLOW,
                 .cb = (void (*)(void))Spectrum, .cbparam = 1, .next = 0},
@@ -2811,9 +3489,11 @@ static void Skaner_RysujEkranGlowny(void)
                         JEZYK_Wybierz("Pasmo", "Band", "Band", "Диапазон"));
         TEXTBOX_SetText(skaner_ctx_aktywny, 1U,
                         JEZYK_Wybierz("Skanuj", "Scan", "Scannen", "Сканировать"));
-        TEXTBOX_SetText(skaner_ctx_aktywny, 3U,
-                        JEZYK_Wybierz("Od-Do", "From-To", "Von-Bis", "От-До"));
+        TEXTBOX_SetText(skaner_ctx_aktywny, 2U,
+                        JEZYK_Wybierz("Ustaw. RF", "RF setup", "HF Setup", "RF настр."));
         TEXTBOX_SetText(skaner_ctx_aktywny, 4U,
+                        JEZYK_Wybierz("Od-Do", "From-To", "Von-Bis", "От-До"));
+        TEXTBOX_SetText(skaner_ctx_aktywny, 5U,
                         JEZYK_Wybierz("Zakres", "Span", "Spanne", "Полоса"));
         TEXTBOX_DrawContext(skaner_ctx_aktywny);
     }
@@ -2918,6 +3598,9 @@ void SPECTR_FindFreq(void)
     GEN_Init();
     SetColours();
     SetUpperLower();
+    /* Czułość skanera jest lokalna. Zmieniamy wyłącznie gain wejścia kodeka,
+     * bez dotykania globalnego CFG_PARAM_LIN_ATTENUATION. */
+    Skaner_RF_ZastosujCzuloscZKonfiguracji(1U);
 
     TEXTBOX_InitContext(&fctx);
     TEXTBOX_Append(&fctx, (TEXTBOX_t *)tb_Scan);
@@ -2951,6 +3634,7 @@ Repaint:
                 ;
             GEN_SetF0Freq(0);
             Skaner_ZapiszOstatniZakres();
+            Skaner_RF_PrzywrocCzuloscPomiarowa();
             skaner_ctx_aktywny = 0;
             SDRH_free(rfft_mags);
             rfft_mags = 0;

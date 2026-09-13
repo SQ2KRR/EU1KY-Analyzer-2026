@@ -85,6 +85,8 @@ static void MenuJezyk(void);
 static void MenuPoziomFunkcji(void);
 static void MenuUstawieniaWyglad(void);
 static void MenuIkony(void);
+static void PrzelaczPrzyciskEnkodera(void);
+static void MenuUstawieniaS21(void);
 static void MenuRTC(void);
 static void MenuOProgramie(void);
 static void MenuAccu(void);
@@ -951,6 +953,8 @@ enum
     MAINWND_AKCJA_UST_DIAGNOSTYKA,
     MAINWND_AKCJA_UST_KONFIGURACJA,
     MAINWND_AKCJA_UST_O_PROGRAMIE,
+    MAINWND_AKCJA_UST_ENKODER_ZRZUT,
+    MAINWND_AKCJA_UST_S21_OPCJE,
 
     MAINWND_AKCJA_PLIKI_MENEDZER = 140,
     MAINWND_AKCJA_PLIKI_DOKUMENTACJA,
@@ -1042,6 +1046,10 @@ static const MAINWND_POZYCJA_DZIALU_t pozycje_ustawienia[] =
     { TEKST_DIAGNOSTYKA, MAINWND_AKCJA_UST_DIAGNOSTYKA, UI_IKONA_SERWIS },
     { TEKST_KONFIGURACJA_ZAAWANSOWANA, MAINWND_AKCJA_UST_KONFIGURACJA, UI_IKONA_USTAWIENIA },
     { TEKST_O_PROGRAMIE, MAINWND_AKCJA_UST_O_PROGRAMIE, UI_IKONA_POMOC },
+
+    /* Strona 3: szybkie ustawienia związane z pomiarem i dokumentacją. */
+    { TEKST_PRZYCISK_ENKODERA, MAINWND_AKCJA_UST_ENKODER_ZRZUT, UI_IKONA_ZRZUTY },
+    { TEKST_USTAWIENIA_S21, MAINWND_AKCJA_UST_S21_OPCJE, UI_IKONA_S21 },
 };
 
 static const MAINWND_POZYCJA_DZIALU_t pozycje_pliki[] =
@@ -1049,6 +1057,7 @@ static const MAINWND_POZYCJA_DZIALU_t pozycje_pliki[] =
     { TEKST_MENU_ZRZUTY, BTN_SNAPSHOT, UI_IKONA_ZRZUTY },
     { TEKST_MENU_MENEDZER_PLIKOW, MAINWND_AKCJA_PLIKI_MENEDZER, UI_IKONA_MENEDZER },
     { TEKST_MENU_USB, BTN_USB, UI_IKONA_USB },
+    { TEKST_PRZYCISK_ENKODERA, MAINWND_AKCJA_UST_ENKODER_ZRZUT, UI_IKONA_ZRZUTY },
 #if PROJEKT_BUILD_DOKUMENTACYJNY_REALNY
     { TEKST_MENU_GENERATOR_INSTRUKCJI, MAINWND_AKCJA_PLIKI_DOKUMENTACJA, UI_IKONA_RAPORT },
 #endif
@@ -1139,11 +1148,24 @@ static bool MAINWND_PobierzStanPozycji(int16_t akcja, bool *wlaczona)
     case MAINWND_AKCJA_KAL_STAN:
         *wlaczona = MAINWND_CzyKalibracjaGotowa();
         return true;
+    case BTN_TRACKER:
+        /* Lampka oznacza gotową kalibrację transmisyjną S21. */
+        *wlaczona = OSL_IsTXCorrLoaded() != 0;
+        return true;
     case BTN_RFGEN:
         *wlaczona = GET_LED_STANU_RF() != 0U;
         return true;
     case BTN_USB:
         *wlaczona = USBD_Device.dev_state == USBD_STATE_CONFIGURED;
+        return true;
+    case MAINWND_AKCJA_UST_ENKODER_ZRZUT:
+        *wlaczona = CFG_GetParam(CFG_PARAM_PRZYCISK_ENKODERA) != 0U;
+        return true;
+    case MAINWND_AKCJA_UST_S21_OPCJE:
+        /* Lampka oznacza aktywne dodatkowe funkcje prezentacji S21. */
+        *wlaczona = CFG_GetParam(CFG_PARAM_S21_POROWNAJ_POPRZEDNI) != 0U ||
+                     CFG_GetParam(CFG_PARAM_S21_TLO_RX) != 0U ||
+                     CFG_GetParam(CFG_PARAM_DIAGNOSTYKA_VI) != 0U;
         return true;
     default:
         *wlaczona = false;
@@ -1414,6 +1436,12 @@ static void MAINWND_WykonajAkcjeNowegoMenu(int16_t akcja)
         break;
     case MAINWND_AKCJA_UST_O_PROGRAMIE:
         MenuOProgramie();
+        break;
+    case MAINWND_AKCJA_UST_ENKODER_ZRZUT:
+        PrzelaczPrzyciskEnkodera();
+        break;
+    case MAINWND_AKCJA_UST_S21_OPCJE:
+        MenuUstawieniaS21();
         break;
     case MAINWND_AKCJA_PLIKI_MENEDZER:
         PLIKI_Otworz();
@@ -1891,6 +1919,96 @@ static void BeepOn(void)
         CFG_SetParam(CFG_PARAM_BeepOn, 0);
     }
     CFG_Flush();
+}
+
+static void PrzelaczDiagnostykeVI(void)
+{
+    const uint32_t nowy_stan = CFG_GetParam(CFG_PARAM_DIAGNOSTYKA_VI) ? 0U : 1U;
+    CFG_SetParam(CFG_PARAM_DIAGNOSTYKA_VI, nowy_stan);
+    CFG_Flush();
+}
+
+static void PrzelaczPrzyciskEnkodera(void)
+{
+    const uint32_t nowy_stan = CFG_GetParam(CFG_PARAM_PRZYCISK_ENKODERA) ? 0U : 1U;
+
+    CFG_SetParam(CFG_PARAM_PRZYCISK_ENKODERA, nowy_stan);
+    CFG_Flush();
+    WEJSCIA_UstawTrybPrzyciskuEnkodera(
+        nowy_stan ? WEJSCIA_PRZYCISK_ENKODERA_ZRZUT
+                  : WEJSCIA_PRZYCISK_ENKODERA_OK);
+}
+
+
+static void S21_ZapiszUstawienie(CFG_PARAM_t parametr, uint32_t wartosc)
+{
+    CFG_SetParam(parametr, wartosc);
+    CFG_Flush();
+}
+
+static void S21_CyklJakoscSkanu(void)
+{
+    const uint32_t obecna = CFG_GetParam(CFG_PARAM_S21_JAKOSC_SKANU);
+    S21_ZapiszUstawienie(CFG_PARAM_S21_JAKOSC_SKANU, (obecna + 1U) % 3U);
+}
+
+static void S21_CyklSkalaDb(void)
+{
+    const uint32_t obecna = CFG_GetParam(CFG_PARAM_S21_SKALA_DB);
+    uint32_t nowa = 20U;
+
+    if (obecna == 20U)
+        nowa = 40U;
+    else if (obecna == 40U)
+        nowa = 60U;
+    else if (obecna == 60U)
+        nowa = 80U;
+
+    S21_ZapiszUstawienie(CFG_PARAM_S21_SKALA_DB, nowa);
+}
+
+static void S21_PrzelaczNormalizacje(void)
+{
+    S21_ZapiszUstawienie(CFG_PARAM_S21_NORMALIZUJ,
+                         CFG_GetParam(CFG_PARAM_S21_NORMALIZUJ) ? 0U : 1U);
+}
+
+static void S21_CyklImpedancjaDut(void)
+{
+    static const uint16_t wartosci[] = { 50U, 75U, 300U, 600U, 910U };
+    const uint32_t obecna = CFG_GetParam(CFG_PARAM_S21_DUT_OHM);
+    uint8_t i;
+
+    for (i = 0U; i < (uint8_t)(sizeof(wartosci) / sizeof(wartosci[0])); ++i)
+    {
+        if (wartosci[i] == obecna)
+        {
+            const uint8_t nastepny = (uint8_t)((i + 1U) %
+                                     (uint8_t)(sizeof(wartosci) / sizeof(wartosci[0])));
+            S21_ZapiszUstawienie(CFG_PARAM_S21_DUT_OHM, wartosci[nastepny]);
+            return;
+        }
+    }
+
+    S21_ZapiszUstawienie(CFG_PARAM_S21_DUT_OHM, 50U);
+}
+
+static void S21_PrzelaczSladRef(void)
+{
+    S21_ZapiszUstawienie(CFG_PARAM_S21_POROWNAJ_POPRZEDNI,
+                         CFG_GetParam(CFG_PARAM_S21_POROWNAJ_POPRZEDNI) ? 0U : 1U);
+}
+
+static void S21_PrzelaczTloRx(void)
+{
+    S21_ZapiszUstawienie(CFG_PARAM_S21_TLO_RX,
+                         CFG_GetParam(CFG_PARAM_S21_TLO_RX) ? 0U : 1U);
+}
+
+static void S21_CyklProfilSpec(void)
+{
+    const uint32_t obecny = CFG_GetParam(CFG_PARAM_S21_PROFIL_SPEC);
+    S21_ZapiszUstawienie(CFG_PARAM_S21_PROFIL_SPEC, (obecny + 1U) % 3U);
 }
 
 static void Rotate(void)
@@ -3081,6 +3199,115 @@ static bool USTAWIENIA_OtworzKafle(const char *tytul, const USTAWIENIA_KAFEL_t *
     while (TOUCH_IsPressed()) Sleep(0);
     return przebuduj_po_jezyku;
 }
+
+static const char *S21_NazwaJakosci(uint32_t jakosc)
+{
+    if (jakosc == 0U)
+        return JEZYK_Wybierz("Szybki", "Fast", "Schnell", "Быстро");
+    if (jakosc == 2U)
+        return JEZYK_Wybierz("Dokładny", "Accurate", "Genau", "Точно");
+    return JEZYK_Wybierz("Normalny", "Normal", "Normal", "Нормально");
+}
+
+static const char *S21_NazwaProfilu(uint32_t profil)
+{
+    if (profil == 1U)
+        return "SFE 5.5MB";
+    if (profil == 2U)
+        return "OMIG 10.7";
+    return JEZYK_Wybierz("Brak", "None", "Kein", "Нет");
+}
+
+static void MenuUstawieniaS21Zaawansowane(void)
+{
+    bool przebuduj;
+
+    do
+    {
+        char profil[48];
+        OSL_S21_KOREKCJA_LINIOWOSCI_t korekcja;
+        USTAWIENIA_KAFEL_t pozycje[6];
+
+        OSL_S21_PobierzKorekcjeLiniowosci(&korekcja);
+        snprintf(profil, sizeof(profil), "%s: %s",
+                 JEZYK_Wybierz("Profil", "Profile", "Profil", "Профиль"),
+                 S21_NazwaProfilu(CFG_GetParam(CFG_PARAM_S21_PROFIL_SPEC)));
+
+        pozycje[0] = (USTAWIENIA_KAFEL_t){
+            JEZYK_Wybierz("Ślad REF", "REF trace", "REF-Kurve", "Трасса REF"),
+            S21_PrzelaczSladRef, UI_IKONA_WYKRES_SWR, true,
+            CFG_GetParam(CFG_PARAM_S21_POROWNAJ_POPRZEDNI) != 0U, true };
+        pozycje[1] = (USTAWIENIA_KAFEL_t){
+            JEZYK_Wybierz("Pomiar tła RX", "RX floor", "RX-Boden", "Фон RX"),
+            S21_PrzelaczTloRx, UI_IKONA_DSP, true,
+            CFG_GetParam(CFG_PARAM_S21_TLO_RX) != 0U, true };
+        pozycje[2] = (USTAWIENIA_KAFEL_t){
+            profil, S21_CyklProfilSpec, UI_IKONA_RAPORT, true,
+            CFG_GetParam(CFG_PARAM_S21_PROFIL_SPEC) != 0U, true };
+        pozycje[3] = (USTAWIENIA_KAFEL_t){
+            JEZYK_Wybierz("Poziomy V/I", "V/I levels", "V/I-Pegel", "Уровни V/I"),
+            PrzelaczDiagnostykeVI, UI_IKONA_DSP, true,
+            CFG_GetParam(CFG_PARAM_DIAGNOSTYKA_VI) != 0U, true };
+        pozycje[4] = (USTAWIENIA_KAFEL_t){
+            JEZYK_Wybierz("Kalibracja S21", "S21 calibration", "S21-Kalibrierung", "Калибровка S21"),
+            CENTRUM_KALIBRACJI_OtworzS21, UI_IKONA_DZIAL_KALIBRACJA, true,
+            false, false };
+        pozycje[5] = (USTAWIENIA_KAFEL_t){
+            "29/40/60 dB", OSL_S21_WeryfikacjaSeriaWnd, UI_IKONA_RAPORT, true,
+            korekcja.dostepna != 0U && korekcja.aktywna != 0U, true };
+
+        przebuduj = USTAWIENIA_OtworzKafle(
+            JEZYK_Wybierz("S21 - więcej", "S21 - more", "S21 - mehr", "S21 - ещё"),
+            pozycje, (uint8_t)(sizeof(pozycje) / sizeof(pozycje[0])));
+    } while (przebuduj);
+}
+
+static void MenuUstawieniaS21(void)
+{
+    bool przebuduj;
+
+    do
+    {
+        char jakosc[52];
+        char skala[40];
+        char widok[52];
+        char dut[40];
+        USTAWIENIA_KAFEL_t pozycje[5];
+
+        snprintf(jakosc, sizeof(jakosc), "%s: %s",
+                 JEZYK_Wybierz("Skan", "Scan", "Scan", "Скан"),
+                 S21_NazwaJakosci(CFG_GetParam(CFG_PARAM_S21_JAKOSC_SKANU)));
+        snprintf(skala, sizeof(skala), "%s: %lu dB",
+                 JEZYK_Wybierz("Skala", "Scale", "Skala", "Шкала"),
+                 (unsigned long)CFG_GetParam(CFG_PARAM_S21_SKALA_DB));
+        snprintf(widok, sizeof(widok), "%s: %s",
+                 JEZYK_Wybierz("Widok", "View", "Ansicht", "Вид"),
+                 CFG_GetParam(CFG_PARAM_S21_NORMALIZUJ)
+                    ? JEZYK_Wybierz("0 dB=max", "0 dB=max", "0 dB=max", "0 дБ=max")
+                    : JEZYK_Wybierz("S21 abs.", "S21 abs.", "S21 abs.", "S21 абс."));
+        snprintf(dut, sizeof(dut), "DUT: %lu om",
+                 (unsigned long)CFG_GetParam(CFG_PARAM_S21_DUT_OHM));
+
+        pozycje[0] = (USTAWIENIA_KAFEL_t){
+            jakosc, S21_CyklJakoscSkanu, UI_IKONA_DSP, true, false, false };
+        pozycje[1] = (USTAWIENIA_KAFEL_t){
+            skala, S21_CyklSkalaDb, UI_IKONA_WYKRES_SWR, true, false, false };
+        pozycje[2] = (USTAWIENIA_KAFEL_t){
+            widok, S21_PrzelaczNormalizacje, UI_IKONA_WYKRES_SWR, true,
+            CFG_GetParam(CFG_PARAM_S21_NORMALIZUJ) != 0U, true };
+        pozycje[3] = (USTAWIENIA_KAFEL_t){
+            dut, S21_CyklImpedancjaDut, UI_IKONA_METODY, true,
+            CFG_GetParam(CFG_PARAM_S21_DUT_OHM) != 50U, true };
+        pozycje[4] = (USTAWIENIA_KAFEL_t){
+            JEZYK_Wybierz("Więcej S21", "More S21", "Mehr S21", "Ещё S21"),
+            MenuUstawieniaS21Zaawansowane, UI_IKONA_USTAWIENIA, true, false, false };
+
+        przebuduj = USTAWIENIA_OtworzKafle(
+            JEZYK_Tekst(TEKST_USTAWIENIA_S21), pozycje,
+            (uint8_t)(sizeof(pozycje) / sizeof(pozycje[0])));
+    } while (przebuduj);
+}
+
 
 static void IkonyUstaw(uint8_t zestaw)
 {

@@ -378,6 +378,81 @@ int16_t SCREENSHOT_SelectFileNames(int fileNoMin)
     return liczba;
 }
 
+static uint8_t SCREENSHOT_WybierzAutomatycznaNazwe(char *nazwa, size_t rozmiar)
+{
+    uint32_t numer;
+    uint32_t maksimum = 0U;
+    uint32_t minimum = 0xFFFFFFFFul;
+    DIR katalog = {0};
+    FILINFO plik = {0};
+    FRESULT wynik;
+
+    if (nazwa == 0 || rozmiar < 9U || !CFG_CzyKartaSDDostepna())
+        return 0U;
+
+    nazwa[0] = '\0';
+    (void)f_mkdir(SNDIR);
+    wynik = f_opendir(&katalog, SNDIR);
+    if (wynik != FR_OK)
+        return 0U;
+
+    numfiles = 0U;
+    oldest = 0xFFFFFFFFul;
+
+    for (;;)
+    {
+        const char *kropka;
+        char *koniec = 0;
+        int i;
+
+        wynik = f_readdir(&katalog, &plik);
+        if (wynik != FR_OK || plik.fname[0] == '\0')
+            break;
+        if ((_FS_RPATH != 0) && plik.fname[0] == '.')
+            continue;
+        if ((plik.fattrib & AM_DIR) != 0U)
+            continue;
+        if (strlen(plik.fname) != 12U)
+            continue;
+
+        kropka = strchr(plik.fname, '.');
+        if (kropka == 0 ||
+            (strcasecmp(kropka, ".bmp") != 0 && strcasecmp(kropka, ".png") != 0))
+            continue;
+
+        for (i = 0; i < 8; ++i)
+        {
+            if (!isdigit((int)plik.fname[i]))
+                break;
+        }
+        if (i != 8)
+            continue;
+
+        numer = strtoul(plik.fname, &koniec, 10);
+        (void)koniec;
+        ++numfiles;
+        if (numer < minimum)
+            minimum = numer;
+        if (numer > maksimum)
+            maksimum = numer;
+    }
+
+    (void)f_closedir(&katalog);
+    if (wynik != FR_OK)
+        return 0U;
+
+    oldest = minimum;
+
+    /*
+     * Nazwy maja osiem cyfr. Po dojściu do 99999999 zaczynamy od zera;
+     * mechanizm usuwania najstarszych plikow nadal zapobiega nieograniczonemu
+     * wzrostowi katalogu.
+     */
+    numer = maksimum >= 99999999UL ? 0U : maksimum + 1U;
+    snprintf(nazwa, rozmiar, "%08lu", (unsigned long)numer);
+    return 1U;
+}
+
 char *SCREENSHOT_SelectFileName(void)
 {
     static char fname[64];
@@ -388,69 +463,17 @@ char *SCREENSHOT_SelectFileName(void)
         KOMUNIKAT_Pokaz(TEKST_OSTRZEZENIE, TEKST_BRAK_KARTY_SD);
         return fname;
     }
-    //char path[128];
-    uint32_t dfnum = 0;
-    //uint32_t retVal;
 
-    f_mkdir(SNDIR);
-
-    //Scan dir for snapshot files
-    uint32_t fmax = 0;
-    uint32_t fmin = 0xFFFFFFFFul;
-    DIR dir = {0};
-    FILINFO fno = {0};
-    FRESULT fr = f_opendir(&dir, SNDIR);
-    numfiles = 0;
-    oldest = 0xFFFFFFFFul;
-    fname[0] = '\0';
-    int i;
-    if (fr == FR_OK)
+    if (!SCREENSHOT_WybierzAutomatycznaNazwe(fname, sizeof(fname)))
     {
-        for (;;)
-        {
-            fr = f_readdir(&dir, &fno); //Iterate through the directory
-            if (fr != FR_OK || !fno.fname[0])
-                break; //Nothing to do
-            if (_FS_RPATH && fno.fname[0] == '.')
-                continue; //bypass hidden files
-            if (fno.fattrib & AM_DIR)
-                continue; //bypass subdirs
-            int len = strlen(fno.fname);
-            if (len != 12) //Bypass filenames with unexpected name length
-                continue;
-            const char *pdot = strchr(fno.fname, (int)'.');
-            if (0 == pdot)
-                continue;
-            if (0 != strcasecmp(pdot, ".bmp") && 0 != strcasecmp(pdot, ".png"))
-                continue; //Bypass files that are not bmp
-            for (i = 0; i < 8; i++)
-                if (!isdigit((int)fno.fname[i]))
-                    break;
-            if (i != 8)
-                continue; //Bypass file names that are not 8-digit numbers
-            numfiles++;
-            //Now convert file name to number
-
-            char *endptr;
-            dfnum = strtoul(fno.fname, &endptr, 10);
-            if (dfnum < fmin)
-                fmin = dfnum;
-            if (dfnum > fmax)
-                fmax = dfnum;
-        }
-        f_closedir(&dir);
-    }
-    else
-    {
+        fname[0] = '\0';
         KOMUNIKAT_Pokaz(TEKST_BLAD, TEKST_BLAD_ODCZYTU_PLIKU);
         return fname;
     }
 
-    oldest = fmin;
-    dfnum = fmax + 1;
-    sprintf(fname, "%08lu", dfnum);
-
-    if (KeyboardWindow(fname, 8, JEZYK_Wybierz("Wpisz nazwę pliku", "Enter the file name", "Dateinamen eingeben", "Введите имя файла")) == 0)
+    if (KeyboardWindow(fname, 8,
+                       JEZYK_Wybierz("Wpisz nazwę pliku", "Enter the file name",
+                                     "Dateinamen eingeben", "Введите имя файла")) == 0)
         fname[0] = '\0';
     return fname;
 }
@@ -799,81 +822,122 @@ static void _Change_B_R(uint32_t *image)
     }
 }
 
-void SCREENSHOT_SavePNG(const char *fname)
+static uint8_t SCREENSHOT_ZapiszPNGDoNazwy(const char *fname, uint8_t pokaz_nazwe,
+                                             uint8_t pokaz_blad)
 {
     char path[64];
     FRESULT fr = FR_OK;
     FIL fo = {0};
-    uint8_t plik_otwarty = 0;
-    uint8_t plik_utworzony = 0;
-    uint8_t ekran_wylaczony = 0;
-    uint8_t kolory_zamienione = 0;
+    uint8_t plik_otwarty = 0U;
+    uint8_t plik_utworzony = 0U;
+    uint8_t ekran_wylaczony = 0U;
+    uint8_t kolory_zamienione = 0U;
     uint8_t *png = 0;
     uint8_t *image = 0;
+    size_t pngsize = 0U;
 
+    if (fname == 0 || fname[0] == '\0' || !CFG_CzyKartaSDDostepna())
+        return 0U;
+
+    if (pokaz_nazwe)
+    {
+        snprintf(path, sizeof(path), "%s.png", fname);
+        FONT_Write(FONT_FRAN, TextColor, BackGrColor, 300, 252, path);
+    }
+
+    image = LCD_Push();
+    if (image == 0)
+        goto BLAD_ZAPISU;
+
+    _Change_B_R((uint32_t *)image);
+    kolory_zamienione = 1U;
+
+    BSP_LCD_DisplayOff();
+    ekran_wylaczony = 1U;
+
+    if (lodepng_encode32(&png, &pngsize, image, LCD_GetWidth(), LCD_GetHeight()) != 0 || png == 0)
+        goto BLAD_ZAPISU;
+
+    (void)f_mkdir(SNDIR);
+    snprintf(path, sizeof(path), "%s/%s.png", SNDIR, fname);
+    fr = f_open(&fo, path, FA_CREATE_ALWAYS | FA_WRITE);
+    if (fr != FR_OK)
+        goto BLAD_ZAPISU;
+    plik_otwarty = 1U;
+    plik_utworzony = 1U;
+
+    {
+        UINT bw = 0U;
+        fr = f_write(&fo, png, pngsize, &bw);
+        if (fr != FR_OK || bw != pngsize)
+            goto BLAD_ZAPISU;
+    }
+
+    (void)f_sync(&fo);
+    (void)f_close(&fo);
+    plik_otwarty = 0U;
+
+    BSP_LCD_DisplayOn();
+    ekran_wylaczony = 0U;
+    lodepng_free(png);
+    png = 0;
+    _Change_B_R((uint32_t *)image);
+    kolory_zamienione = 0U;
+    LCD_Pop();
+    return 1U;
+
+BLAD_ZAPISU:
+    if (plik_otwarty)
+        (void)f_close(&fo);
+    if (plik_utworzony)
+        (void)f_unlink(path);
+    if (ekran_wylaczony)
+        BSP_LCD_DisplayOn();
+    if (png != 0)
+        lodepng_free(png);
+    if (kolory_zamienione && image != 0)
+        _Change_B_R((uint32_t *)image);
+    if (image != 0)
+        LCD_Pop();
+    if (pokaz_blad)
+        KOMUNIKAT_Pokaz(TEKST_BLAD, TEKST_BLAD_ZAPISU_PLIKU);
+    return 0U;
+}
+
+void SCREENSHOT_SavePNG(const char *fname)
+{
     if (!CFG_CzyKartaSDDostepna())
     {
         KOMUNIKAT_Pokaz(TEKST_OSTRZEZENIE, TEKST_BRAK_KARTY_SD);
         return;
     }
+    (void)SCREENSHOT_ZapiszPNGDoNazwy(fname, 1U, 1U);
+}
 
-    sprintf(path, "%s.png", fname);
-    FONT_Write(FONT_FRAN, TextColor, BackGrColor, 300, 252, path);
+uint8_t SCREENSHOT_ZapiszAutomatyczny(void)
+{
+    char nazwa[16];
+    char sciezka[64];
+    uint8_t wynik;
 
-    image = LCD_Push();
-    if (0 == image)
-    {
-        KOMUNIKAT_Pokaz(TEKST_BLAD, TEKST_BLAD_ZAPISU_PLIKU);
-        return;
-    }
+    /*
+     * Szybki zrzut ma odwzorowac dokladnie to, co jest na LCD. Nie otwieramy
+     * klawiatury, nie dopisujemy nazwy ani znacznika czasu na ekranie przed
+     * odczytem pikseli. Jest to szczegolnie wazne podczas kalibracji.
+     */
+    if (!SCREENSHOT_WybierzAutomatycznaNazwe(nazwa, sizeof(nazwa)))
+        return 0U;
 
-    _Change_B_R((uint32_t *)image);
-    kolory_zamienione = 1;
+    SCREENSHOT_DeleteOldest();
 
-    size_t pngsize = 0;
-    BSP_LCD_DisplayOff();
-    ekran_wylaczony = 1;
+    if (CFG_GetParam(CFG_PARAM_SCREENSHOT_FORMAT) != 0U)
+        return SCREENSHOT_ZapiszPNGDoNazwy(nazwa, 0U, 0U);
 
-    if (lodepng_encode32(&png, &pngsize, image, LCD_GetWidth(), LCD_GetHeight()) != 0 || png == 0)
-        goto BLAD_ZAPISU;
+    if (snprintf(sciezka, sizeof(sciezka), "%s/%s.bmp", SNDIR, nazwa) >= (int)sizeof(sciezka))
+        return 0U;
 
-    f_mkdir(SNDIR);
-    sprintf(path, "%s/%s.png", SNDIR, fname);
-    fr = f_open(&fo, path, FA_CREATE_ALWAYS | FA_WRITE);
-    if (FR_OK != fr)
-        goto BLAD_ZAPISU;
-    plik_otwarty = 1;
-    plik_utworzony = 1;
-
-    UINT bw = 0;
-    fr = f_write(&fo, png, pngsize, &bw);
-    if (FR_OK != fr || bw != pngsize)
-        goto BLAD_ZAPISU;
-
-    f_close(&fo);
-    plik_otwarty = 0;
-    BSP_LCD_DisplayOn();
-    ekran_wylaczony = 0;
-    lodepng_free(png);
-    png = 0;
-    _Change_B_R((uint32_t *)image);
-    kolory_zamienione = 0;
-    LCD_Pop();
-    return;
-
-BLAD_ZAPISU:
-    if (plik_otwarty)
-        f_close(&fo);
-    if (plik_utworzony)
-        f_unlink(path);
-    if (ekran_wylaczony)
-        BSP_LCD_DisplayOn();
-    if (png != 0)
-        lodepng_free(png);
-    if (kolory_zamienione)
-        _Change_B_R((uint32_t *)image);
-    LCD_Pop();
-    KOMUNIKAT_Pokaz(TEKST_BLAD, TEKST_BLAD_ZAPISU_PLIKU);
+    wynik = SCREENSHOT_ZapiszBMPDoPliku(sciezka);
+    return wynik ? 1U : 0U;
 }
 
 extern unsigned lodepng_decode32(unsigned char **out, unsigned *w, unsigned *h,

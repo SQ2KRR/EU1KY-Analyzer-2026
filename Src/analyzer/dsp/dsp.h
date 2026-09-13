@@ -77,6 +77,13 @@ extern "C"
     float DSP_MeasureTrack(uint32_t freqHz, int applyErrCorr, int applyOSL, int nMeasurements);
     int DSP_CzyOstatniPomiarTrackPoprawny(void);
     float DSP_OstatniPoziomTrack(void);
+    void DSP_UstawDiagnostykeTrack(uint8_t wlaczona);
+    float DSP_OstatniTrackVmv(void);
+    float DSP_OstatniTrackImv(void);
+    float DSP_TrackPoziomNaMv(float poziom);
+    float DSP_OstatniTrackRozrzutIProc(void);
+    float DSP_OstatniTrackRozrzutVProc(void);
+    float DSP_MeasureTrackTlo(uint32_t freqHz, int nMeasurements, float *rozrzut_i_proc);
     float DSP_MeasuredTrackValue();
     float DSP_MeasureTrackCal(void);
 

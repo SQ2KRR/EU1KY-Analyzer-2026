@@ -902,3 +902,213 @@ uint32_t UI_EdytujRezystancjeMiliohm(uint32_t poczatkowa_mohm,
                                         maksimum_mohm, tytul, &wynik);
     return wynik;
 }
+/*
+ * Edytor dokładnego tłumienia S21 w setnych dB.
+ *
+ * Wartość 4000 oznacza 40,00 dB. Cztery pola odpowiadają kolejno 10 dB,
+ * 1 dB, 0,1 dB i 0,01 dB. Taki układ pozwala szybko ustawić zarówno
+ * nominalny tłumik 29/40/60 dB, jak i rzeczywistą wartość wyznaczoną z
+ * pomiaru lub obliczeń bez używania starej klawiatury numerycznej.
+ */
+static uint16_t UI_DB_SzerokoscPola(void)
+{
+    const uint16_t szerokosc_uzyteczna = 452U;
+    const uint16_t separator = 20U;
+    const uint16_t odstepy = 3U * UI_EDYTOR_ODSTEP;
+    return (uint16_t)((szerokosc_uzyteczna - separator - odstepy) / 4U);
+}
+
+static uint16_t UI_DB_XPola(uint8_t pole)
+{
+    const uint16_t szerokosc = UI_DB_SzerokoscPola();
+    uint16_t x = 14U + (uint16_t)pole * (uint16_t)(szerokosc + UI_EDYTOR_ODSTEP);
+
+    if (pole >= 2U)
+        x = (uint16_t)(x + 20U);
+    return x;
+}
+
+static uint16_t UI_DB_XSeparatora(void)
+{
+    const uint16_t szerokosc = UI_DB_SzerokoscPola();
+    return (uint16_t)(14U + 2U * (uint16_t)(szerokosc + UI_EDYTOR_ODSTEP) - UI_EDYTOR_ODSTEP);
+}
+
+static void UI_DB_Formatuj(uint32_t wartosc_x100, char *bufor, uint32_t rozmiar)
+{
+    const char separator = JEZYK_CzySeparatorDziesietnyPrzecinek() ? ',' : '.';
+    snprintf(bufor, rozmiar, "%lu%c%02lu dB",
+             (unsigned long)(wartosc_x100 / 100U), separator,
+             (unsigned long)(wartosc_x100 % 100U));
+}
+
+static void UI_DB_RysujEdytor(uint32_t wartosc_x100,
+                              uint32_t minimum_x100,
+                              uint32_t maksimum_x100,
+                              const char *tytul,
+                              uint8_t pole)
+{
+    char cyfry[5];
+    char zakres_min[20];
+    char zakres_max[20];
+    char informacja[96];
+    char separator[2] = { JEZYK_CzySeparatorDziesietnyPrzecinek() ? ',' : '.', '\0' };
+    const uint16_t szerokosc_pola = UI_DB_SzerokoscPola();
+    uint8_t i;
+
+    snprintf(cyfry, sizeof(cyfry), "%04lu", (unsigned long)wartosc_x100);
+    UI_DB_Formatuj(minimum_x100, zakres_min, sizeof(zakres_min));
+    UI_DB_Formatuj(maksimum_x100, zakres_max, sizeof(zakres_max));
+    snprintf(informacja, sizeof(informacja),
+             JEZYK_Wybierz("Zakres: %s - %s",
+                           "Range: %s - %s",
+                           "Bereich: %s - %s",
+                           "Диапазон: %s - %s"),
+             zakres_min, zakres_max);
+
+    UI_WyczyscEkran();
+    UI_RysujPasekGorny(tytul, false, false, 0);
+    UI_RysujPanel(UI_R_MARGINES_X, UI_R_PANEL_Y, 460U, UI_R_PANEL_H,
+                  JEZYK_Wybierz("Tłumienie wzorca S21", "S21 reference attenuation",
+                                "S21-Referenzdämpfung", "Ослабление эталона S21"),
+                  UI_STYL_NORMALNY);
+
+    UI_R_Wycentruj(FONT_FRAN, UI_DB_XPola(0U), 63U,
+                   (uint16_t)(UI_DB_XPola(1U) + szerokosc_pola - UI_DB_XPola(0U)),
+                   UI_KolorTekstu(UI_STYL_NIEAKTYWNY), UI_KolorTlaPola(), "dB");
+    UI_R_Wycentruj(FONT_FRAN, UI_DB_XPola(2U), 63U,
+                   (uint16_t)(UI_DB_XPola(3U) + szerokosc_pola - UI_DB_XPola(2U)),
+                   UI_KolorTekstu(UI_STYL_NIEAKTYWNY), UI_KolorTlaPola(),
+                   JEZYK_Wybierz("setne dB", "hundredths dB", "Hundertstel dB", "сотые дБ"));
+
+    for (i = 0U; i < 4U; ++i)
+    {
+        char znak[2] = { cyfry[i], '\0' };
+        UI_R_RysujPole(UI_DB_XPola(i), szerokosc_pola, znak, pole == i);
+    }
+    UI_R_Wycentruj(FONT_BDIGITS, UI_DB_XSeparatora(), (uint16_t)(UI_R_POLE_Y + 5U),
+                   20U, UI_KolorTekstu(UI_STYL_NORMALNY), UI_KolorTlaPola(), separator);
+
+    UI_RysujPoleInformacyjne(10U, UI_R_INFO_Y, 460U, UI_R_INFO_H,
+                             JEZYK_Wybierz("Dokładność 0,01 dB", "0.01 dB resolution",
+                                           "Auflösung 0,01 dB", "Разрешение 0,01 дБ"),
+                             informacja);
+
+    UI_RysujPrzycisk(10U, UI_R_PRZYCISKI_Y, 112U, UI_R_PRZYCISKI_H,
+                     JEZYK_Tekst(TEKST_ANULUJ), UI_STYL_POWROT, FONT_FRAN);
+    UI_RysujPrzycisk(130U, UI_R_PRZYCISKI_Y, 70U, UI_R_PRZYCISKI_H,
+                     "-", UI_STYL_NORMALNY, FONT_FRANBIG);
+    UI_RysujPrzycisk(208U, UI_R_PRZYCISKI_Y, 70U, UI_R_PRZYCISKI_H,
+                     "+", UI_STYL_NORMALNY, FONT_FRANBIG);
+    UI_RysujPrzycisk(286U, UI_R_PRZYCISKI_Y, 184U, UI_R_PRZYCISKI_H,
+                     JEZYK_Tekst(TEKST_ZAPISZ), UI_STYL_AKTYWNY, FONT_FRANBIG);
+}
+
+static uint8_t UI_DB_PoleDotyku(const LCDPoint *punkt)
+{
+    uint8_t i;
+    const uint16_t szerokosc = UI_DB_SzerokoscPola();
+
+    if (punkt == NULL || punkt->y < (UI_R_POLE_Y - 8U) ||
+        punkt->y >= (UI_R_POLE_Y + UI_R_POLE_H + 8U))
+        return 0xFFU;
+
+    for (i = 0U; i < 4U; ++i)
+    {
+        const uint16_t x = UI_DB_XPola(i);
+        if (punkt->x >= x && punkt->x < (uint16_t)(x + szerokosc))
+            return i;
+    }
+    return 0xFFU;
+}
+
+bool UI_EdytujDecybeleX100Ex(uint32_t poczatkowa_x100,
+                             uint32_t minimum_x100,
+                             uint32_t maksimum_x100,
+                             const char *tytul,
+                             uint32_t *wynik_x100)
+{
+    uint32_t wartosc = poczatkowa_x100;
+    uint8_t pole = 0U;
+
+    if (wynik_x100 != NULL)
+        *wynik_x100 = poczatkowa_x100;
+    if (wynik_x100 == NULL || minimum_x100 > maksimum_x100 || maksimum_x100 > 9999U)
+        return false;
+    if (wartosc < minimum_x100)
+        wartosc = minimum_x100;
+    if (wartosc > maksimum_x100)
+        wartosc = maksimum_x100;
+
+    while (TOUCH_IsPressed())
+        Sleep(10U);
+    WEJSCIA_WyczyscZdarzenia();
+    UI_DB_RysujEdytor(wartosc, minimum_x100, maksimum_x100, tytul, pole);
+
+    for (;;)
+    {
+        LCDPoint punkt;
+        WEJSCIE_ZDARZENIE_t zdarzenie;
+        int8_t kierunek = 0;
+
+        if (TOUCH_Poll(&punkt))
+        {
+            const uint8_t dotkniete_pole = UI_DB_PoleDotyku(&punkt);
+            if (dotkniete_pole != 0xFFU)
+            {
+                pole = dotkniete_pole;
+                TOUCH_CzekajNaPuszczenie(30U);
+                UI_DB_RysujEdytor(wartosc, minimum_x100, maksimum_x100, tytul, pole);
+            }
+            else if (punkt.y >= 214U)
+            {
+                TOUCH_CzekajNaPuszczenie(30U);
+                if (punkt.x < 126U)
+                    return false;
+                if (punkt.x < 204U)
+                    kierunek = -1;
+                else if (punkt.x < 282U)
+                    kierunek = 1;
+                else
+                {
+                    *wynik_x100 = wartosc;
+                    return true;
+                }
+            }
+        }
+
+        zdarzenie = WEJSCIA_PobierzZdarzenie();
+        if (zdarzenie == WEJSCIE_ZDARZENIE_WSTECZ)
+            return false;
+        if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_LEWO)
+            kierunek = -1;
+        else if (zdarzenie == WEJSCIE_ZDARZENIE_OBROT_PRAWO)
+            kierunek = 1;
+        else if (zdarzenie == WEJSCIE_ZDARZENIE_OK)
+        {
+            if (pole < 3U)
+            {
+                ++pole;
+                UI_DB_RysujEdytor(wartosc, minimum_x100, maksimum_x100, tytul, pole);
+            }
+            else
+            {
+                *wynik_x100 = wartosc;
+                return true;
+            }
+        }
+
+        if (kierunek != 0)
+        {
+            const uint32_t krok = UI_Potega10((uint8_t)(3U - pole));
+            const uint32_t nowa = UI_ZmienLiczbeKrokiem(wartosc, minimum_x100,
+                                                        maksimum_x100, krok, kierunek);
+            if (nowa != wartosc)
+            {
+                wartosc = nowa;
+                UI_DB_RysujEdytor(wartosc, minimum_x100, maksimum_x100, tytul, pole);
+            }
+        }
+        Sleep(10U);
+    }
+}

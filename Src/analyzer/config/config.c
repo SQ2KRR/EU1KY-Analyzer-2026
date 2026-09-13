@@ -462,7 +462,7 @@ static const CFG_CHANGEABLE_PARAM_DESCR_t cfg_ch_descr_table[] =
             .nvalues = 4,
             .values = CFG_IARR(0, 1, 2, 3),
             .strvalues = CFG_SARR("Stalowy", "Zielony", "Bursztynowy", "Czerwony"),
-            .dstring = "Kolor głównej krzywej na wykresie SWR w stylu retro.",
+            .dstring = "Wspólny kolor głównej krzywej wykresów SWR i S21 w stylu retro.",
         },
         {
             .id = CFG_PARAM_CURSOR,  // added by DH1AKF
@@ -475,12 +475,94 @@ static const CFG_CHANGEABLE_PARAM_DESCR_t cfg_ch_descr_table[] =
         },
         {
             .id = CFG_PARAM_ATTENUATOR,       // added by DH1AKF
-            .idstring = "Attenuator for S21", // 03.11.2020 / 19.11.2020
+            .idstring = "Attenuator for S21", // pole zgodności ze starszym firmware
             .type = CFG_PARAM_T_U32,
-            .nvalues = 7,
-            .values = CFG_IARR(10, 16, 20, 30, 40, 50, 60),
-            .strvalues = CFG_SARR("10 dB", "16 dB", "20 dB", "30 dB", "40 dB", "50 dB", "60 dB"),
-            .dstring = "Calibrate S21 with additional Attenuator",
+            .nvalues = 3,
+            .values = CFG_IARR(29, 40, 60),
+            .strvalues = CFG_SARR("29 dB", "40 dB", "60 dB"),
+            .dstring = "Legacy S21 attenuator value; exact value is selected in the S21 calibration wizard.",
+            .isvalid = isNigdyNiePokazuj,
+        },
+        {
+            .id = CFG_PARAM_DIAGNOSTYKA_VI,
+            .idstring = "S21 V/I diagnostics",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 2,
+            .values = CFG_IARR(0, 1),
+            .strvalues = CFG_SARR("Wyłączone", "Włączone"),
+            .dstring = "Poziomy V/I oraz wiarygodność punktu w ekranie S21 i podczas kalibracji.",
+        },
+        {
+            .id = CFG_PARAM_S21_AUTO_FILTR,
+            .idstring = "S21 auto filter",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 2,
+            .values = CFG_IARR(0, 1),
+            .strvalues = CFG_SARR("Wyłączony", "Włączony"),
+            .dstring = "Automatyczne centrowanie i zawężanie zakresu po wykryciu filtru.",
+        },
+        {
+            .id = CFG_PARAM_S21_JAKOSC_SKANU,
+            .idstring = "S21 scan quality",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 3,
+            .values = CFG_IARR(0, 1, 2),
+            .strvalues = CFG_SARR("Szybki", "Normalny", "Dokładny"),
+            .dstring = "Liczba powtórzeń pomiaru w punkcie S21.",
+        },
+        {
+            .id = CFG_PARAM_S21_SKALA_DB,
+            .idstring = "S21 vertical scale",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 4,
+            .values = CFG_IARR(20, 40, 60, 80),
+            .strvalues = CFG_SARR("0..-20 dB", "0..-40 dB", "0..-60 dB", "0..-80 dB"),
+            .dstring = "Pełny zakres pionowy wykresu S21.",
+        },
+        {
+            .id = CFG_PARAM_S21_NORMALIZUJ,
+            .idstring = "S21 normalized plot",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 2,
+            .values = CFG_IARR(0, 1),
+            .strvalues = CFG_SARR("Bezwzględny", "Do maksimum"),
+            .dstring = "Prezentacja bezwzględnego S21 albo kształtu filtru z maksimum ustawionym na 0 dB.",
+        },
+        {
+            .id = CFG_PARAM_S21_DUT_OHM,
+            .idstring = "S21 DUT impedance",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 5,
+            .values = CFG_IARR(50, 75, 300, 600, 910),
+            .strvalues = CFG_SARR("50 ohm", "75 ohm", "300 ohm", "600 ohm", "910 ohm"),
+            .dstring = "Nominalna impedancja DUT; !=50 om wymaga zewnętrznego dopasowania.",
+        },
+        {
+            .id = CFG_PARAM_S21_POROWNAJ_POPRZEDNI,
+            .idstring = "S21 previous trace",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 2,
+            .values = CFG_IARR(0, 1),
+            .strvalues = CFG_SARR("Wyłączony", "Włączony"),
+            .dstring = "Przy ręcznym pomiarze zachowuje poprzedni przebieg jako ślad REF.",
+        },
+        {
+            .id = CFG_PARAM_S21_TLO_RX,
+            .idstring = "S21 receiver floor",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 2,
+            .values = CFG_IARR(0, 1),
+            .strvalues = CFG_SARR("Wyłączony", "Włączony"),
+            .dstring = "Tło RX jako granica orientacyjna; bez odejmowania od śladu.",
+        },
+        {
+            .id = CFG_PARAM_S21_PROFIL_SPEC,
+            .idstring = "S21 reference profile",
+            .type = CFG_PARAM_T_U32,
+            .nvalues = 3,
+            .values = CFG_IARR(0, 1, 2),
+            .strvalues = CFG_SARR("Brak", "SFE 5.5MB", "OMIG PP-10,7-B2/2"),
+            .dstring = "Profil referencyjny filtru; nie zastępuje dopasowania ani karty katalogowej.",
         },
         {
             .id = CFG_PARAM_JEZYK,
@@ -681,6 +763,21 @@ static void CFG_UstawDomyslne(void)
     CFG_SetParam(CFG_PARAM_LOGLOG, 1);
     CFG_SetParam(CFG_PARAM_CURSOR, 1);
     CFG_SetParam(CFG_PARAM_ATTENUATOR, 40);
+    CFG_SetParam(CFG_PARAM_S21_TLUMIK_DB_X100, 4000U);
+    CFG_SetParam(CFG_PARAM_DIAGNOSTYKA_VI, 0U);
+    CFG_SetParam(CFG_PARAM_PRZYCISK_ENKODERA, 0U);
+    CFG_SetParam(CFG_PARAM_S21_AUTO_FILTR, 0U);
+    CFG_SetParam(CFG_PARAM_S21_JAKOSC_SKANU, 1U);
+    CFG_SetParam(CFG_PARAM_S21_SKALA_DB, 60U);
+    CFG_SetParam(CFG_PARAM_S21_NORMALIZUJ, 0U);
+    CFG_SetParam(CFG_PARAM_S21_DUT_OHM, 50U);
+    CFG_SetParam(CFG_PARAM_S21_POROWNAJ_POPRZEDNI, 0U);
+    CFG_SetParam(CFG_PARAM_S21_TLO_RX, 1U);
+    CFG_SetParam(CFG_PARAM_S21_PROFIL_SPEC, 0U);
+    CFG_SetParam(CFG_PARAM_SKANER_RF_CZULOSC, 3U);
+    CFG_SetParam(CFG_PARAM_SKANER_RF_DETEKCJA, 0U);
+    CFG_SetParam(CFG_PARAM_SKANER_RF_USREDNIANIE, 1U);
+    CFG_SetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU, 0U);
     CFG_SetParam(CFG_PARAM_ShowLogoTime, 10);
     CFG_SetParam(CFG_PARAM_UI_MOTYW, 0);
     CFG_SetParam(CFG_PARAM_TDR_VF_X10000, 6600U);
@@ -1007,6 +1104,68 @@ static void CFG_WalidujKrytyczne(void)
     }
     if (CFG_GetParam(CFG_PARAM_OSL_ROPEN_ZRODLO) > 1U)
         CFG_SetParam(CFG_PARAM_OSL_ROPEN_ZRODLO, 0U);
+
+    /*
+     * Dokładny wzorzec S21 dopisano na końcu konfiguracji. Jeżeli nowe pole
+     * nie istnieje w starszym pliku albo ma uszkodzoną wartość, migrujemy
+     * historyczne całkowite dB. Zakres 1,00..99,99 dB jest wystarczający dla
+     * toru S21 i jednocześnie chroni przed przypadkowym wpisem 0 dB.
+     */
+    {
+        uint32_t tlumik_x100 = CFG_GetParam(CFG_PARAM_S21_TLUMIK_DB_X100);
+        if (tlumik_x100 < 100U || tlumik_x100 > 9999U)
+        {
+            uint32_t legacy_db = CFG_GetParam(CFG_PARAM_ATTENUATOR);
+            if (legacy_db < 1U || legacy_db > 99U)
+                legacy_db = 40U;
+            tlumik_x100 = legacy_db * 100U;
+            CFG_SetParam(CFG_PARAM_S21_TLUMIK_DB_X100, tlumik_x100);
+        }
+
+        /* Starszy firmware nadal zobaczy najbliższą całkowitą wartość. */
+        CFG_SetParam(CFG_PARAM_ATTENUATOR, (tlumik_x100 + 50U) / 100U);
+    }
+
+    if (CFG_GetParam(CFG_PARAM_DIAGNOSTYKA_VI) > 1U)
+        CFG_SetParam(CFG_PARAM_DIAGNOSTYKA_VI, 0U);
+    if (CFG_GetParam(CFG_PARAM_PRZYCISK_ENKODERA) > 1U)
+        CFG_SetParam(CFG_PARAM_PRZYCISK_ENKODERA, 0U);
+    if (CFG_GetParam(CFG_PARAM_S21_AUTO_FILTR) > 1U)
+        CFG_SetParam(CFG_PARAM_S21_AUTO_FILTR, 0U);
+    if (CFG_GetParam(CFG_PARAM_S21_JAKOSC_SKANU) > 2U)
+        CFG_SetParam(CFG_PARAM_S21_JAKOSC_SKANU, 1U);
+    {
+        const uint32_t skala = CFG_GetParam(CFG_PARAM_S21_SKALA_DB);
+        if (skala != 20U && skala != 40U && skala != 60U && skala != 80U)
+            CFG_SetParam(CFG_PARAM_S21_SKALA_DB, 60U);
+    }
+    if (CFG_GetParam(CFG_PARAM_S21_NORMALIZUJ) > 1U)
+        CFG_SetParam(CFG_PARAM_S21_NORMALIZUJ, 0U);
+    {
+        const uint32_t z = CFG_GetParam(CFG_PARAM_S21_DUT_OHM);
+        if (z != 50U && z != 75U && z != 300U && z != 600U && z != 910U)
+            CFG_SetParam(CFG_PARAM_S21_DUT_OHM, 50U);
+    }
+    if (CFG_GetParam(CFG_PARAM_S21_POROWNAJ_POPRZEDNI) > 1U)
+        CFG_SetParam(CFG_PARAM_S21_POROWNAJ_POPRZEDNI, 0U);
+    if (CFG_GetParam(CFG_PARAM_S21_TLO_RX) > 1U)
+        CFG_SetParam(CFG_PARAM_S21_TLO_RX, 1U);
+    if (CFG_GetParam(CFG_PARAM_S21_PROFIL_SPEC) > 2U)
+        CFG_SetParam(CFG_PARAM_S21_PROFIL_SPEC, 0U);
+
+    /* RFSCAN14: lokalne nastawy skanera nie mogą wypłynąć na zwykły tor
+     * pomiarowy. Walidujemy je osobno i zawsze mamy bezpieczny stan domyślny. */
+    if (CFG_GetParam(CFG_PARAM_SKANER_RF_CZULOSC) > 3U)
+        CFG_SetParam(CFG_PARAM_SKANER_RF_CZULOSC, 3U);
+    if (CFG_GetParam(CFG_PARAM_SKANER_RF_DETEKCJA) > 1U)
+        CFG_SetParam(CFG_PARAM_SKANER_RF_DETEKCJA, 0U);
+    {
+        const uint32_t n = CFG_GetParam(CFG_PARAM_SKANER_RF_USREDNIANIE);
+        if (n != 1U && n != 2U && n != 4U)
+            CFG_SetParam(CFG_PARAM_SKANER_RF_USREDNIANIE, 1U);
+    }
+    if (CFG_GetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU) > 1U)
+        CFG_SetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU, 0U);
 }
 
 static bool CFG_WczytajNowyFormat(FIL *plik)
@@ -1084,6 +1243,34 @@ static bool CFG_WczytajNowyFormat(FIL *plik)
         CFG_SetParam(CFG_PARAM_WERYFIKACJA_R_KONTROLNY_MOHM, 22000U);
     if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_KOLOR_KRZYWEJ_SWR)
         CFG_SetParam(CFG_PARAM_KOLOR_KRZYWEJ_SWR, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_DIAGNOSTYKA_VI)
+        CFG_SetParam(CFG_PARAM_DIAGNOSTYKA_VI, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_PRZYCISK_ENKODERA)
+        CFG_SetParam(CFG_PARAM_PRZYCISK_ENKODERA, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_AUTO_FILTR)
+        CFG_SetParam(CFG_PARAM_S21_AUTO_FILTR, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_JAKOSC_SKANU)
+        CFG_SetParam(CFG_PARAM_S21_JAKOSC_SKANU, 1U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_SKALA_DB)
+        CFG_SetParam(CFG_PARAM_S21_SKALA_DB, 60U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_NORMALIZUJ)
+        CFG_SetParam(CFG_PARAM_S21_NORMALIZUJ, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_DUT_OHM)
+        CFG_SetParam(CFG_PARAM_S21_DUT_OHM, 50U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_POROWNAJ_POPRZEDNI)
+        CFG_SetParam(CFG_PARAM_S21_POROWNAJ_POPRZEDNI, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_TLO_RX)
+        CFG_SetParam(CFG_PARAM_S21_TLO_RX, 1U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_S21_PROFIL_SPEC)
+        CFG_SetParam(CFG_PARAM_S21_PROFIL_SPEC, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_SKANER_RF_CZULOSC)
+        CFG_SetParam(CFG_PARAM_SKANER_RF_CZULOSC, 3U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_SKANER_RF_DETEKCJA)
+        CFG_SetParam(CFG_PARAM_SKANER_RF_DETEKCJA, 0U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_SKANER_RF_USREDNIANIE)
+        CFG_SetParam(CFG_PARAM_SKANER_RF_USREDNIANIE, 1U);
+    if (naglowek.liczba_parametrow <= (uint32_t)CFG_PARAM_SKANER_RF_SKALA_KOLORU)
+        CFG_SetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU, 0U);
 
     CFG_SetParam(CFG_PARAM_VERSION, CFG_WersjaProgramuU32());
     return true;
@@ -1156,6 +1343,10 @@ static bool CFG_WczytajStaryFormat(FIL *plik, DWORD rozmiar_pliku)
     if (rozmiar_pliku <= (DWORD)((uint32_t)CFG_PARAM_REZERWA_LACZNOSC_3 * sizeof(uint32_t))) CFG_SetParam(CFG_PARAM_REZERWA_LACZNOSC_3, 0U);
     if (rozmiar_pliku <= (DWORD)((uint32_t)CFG_PARAM_SKANER_RF_FMIN_HZ * sizeof(uint32_t))) CFG_SetParam(CFG_PARAM_SKANER_RF_FMIN_HZ, 3500000U);
     if (rozmiar_pliku <= (DWORD)((uint32_t)CFG_PARAM_SKANER_RF_FMAX_HZ * sizeof(uint32_t))) CFG_SetParam(CFG_PARAM_SKANER_RF_FMAX_HZ, 3900000U);
+    if (rozmiar_pliku <= (DWORD)((uint32_t)CFG_PARAM_SKANER_RF_CZULOSC * sizeof(uint32_t))) CFG_SetParam(CFG_PARAM_SKANER_RF_CZULOSC, 3U);
+    if (rozmiar_pliku <= (DWORD)((uint32_t)CFG_PARAM_SKANER_RF_DETEKCJA * sizeof(uint32_t))) CFG_SetParam(CFG_PARAM_SKANER_RF_DETEKCJA, 0U);
+    if (rozmiar_pliku <= (DWORD)((uint32_t)CFG_PARAM_SKANER_RF_USREDNIANIE * sizeof(uint32_t))) CFG_SetParam(CFG_PARAM_SKANER_RF_USREDNIANIE, 1U);
+    if (rozmiar_pliku <= (DWORD)((uint32_t)CFG_PARAM_SKANER_RF_SKALA_KOLORU * sizeof(uint32_t))) CFG_SetParam(CFG_PARAM_SKANER_RF_SKALA_KOLORU, 0U);
 
     CFG_SetParam(CFG_PARAM_VERSION, CFG_WersjaProgramuU32());
     return true;
@@ -1788,6 +1979,49 @@ void CFG_SetParam(CFG_PARAM_t param, uint32_t value)
     }
 }
 
+uint32_t CFG_GetS21TlumikDbX100(void)
+{
+    uint32_t wartosc_x100 = g_cfg_array[CFG_PARAM_S21_TLUMIK_DB_X100];
+
+    if (wartosc_x100 < 100U || wartosc_x100 > 9999U)
+    {
+        uint32_t legacy_db = g_cfg_array[CFG_PARAM_ATTENUATOR];
+        if (legacy_db < 1U || legacy_db > 99U)
+            legacy_db = 40U;
+        wartosc_x100 = legacy_db * 100U;
+    }
+    return wartosc_x100;
+}
+
+float CFG_GetS21TlumikDb(void)
+{
+    return (float)CFG_GetS21TlumikDbX100() / 100.0f;
+}
+
+bool CFG_UstawS21TlumikDbX100(uint32_t wartosc_x100)
+{
+    if (wartosc_x100 < 100U || wartosc_x100 > 9999U)
+        return false;
+
+    g_cfg_array[CFG_PARAM_S21_TLUMIK_DB_X100] = wartosc_x100;
+    /* Pole całkowite pozostaje tylko mostem zgodności dla starszych wersji. */
+    g_cfg_array[CFG_PARAM_ATTENUATOR] = (wartosc_x100 + 50U) / 100U;
+    return true;
+}
+
+void CFG_FormatujS21Tlumik(char *bufor, uint32_t rozmiar)
+{
+    const uint32_t wartosc_x100 = CFG_GetS21TlumikDbX100();
+    const char separator = JEZYK_CzySeparatorDziesietnyPrzecinek() ? ',' : '.';
+
+    if (bufor == NULL || rozmiar == 0U)
+        return;
+
+    snprintf(bufor, rozmiar, "%lu%c%02lu dB",
+             (unsigned long)(wartosc_x100 / 100U), separator,
+             (unsigned long)(wartosc_x100 % 100U));
+}
+
 uint32_t CFG_GetOslRshortMilliOhm(void)
 {
     uint32_t mohm = g_cfg_array[CFG_PARAM_OSL_RSHORT_MOHM];
@@ -2175,6 +2409,32 @@ static const char *CFG_WartoscLokalna(CFG_PARAM_t id, uint32_t wartosc)
         if (wartosc == 3U)
             return JEZYK_Wybierz("Czerwony", "Red", "Rot", "Красный");
         return JEZYK_Wybierz("Stalowy", "Steel", "Stahl", "Стальной");
+    case CFG_PARAM_DIAGNOSTYKA_VI:
+    case CFG_PARAM_S21_AUTO_FILTR:
+    case CFG_PARAM_S21_NORMALIZUJ:
+    case CFG_PARAM_S21_POROWNAJ_POPRZEDNI:
+    case CFG_PARAM_S21_TLO_RX:
+        return wartosc ? JEZYK_Wybierz("Włączony", "On", "Ein", "Вкл.")
+                       : JEZYK_Wybierz("Wyłączony", "Off", "Aus", "Выкл.");
+    case CFG_PARAM_S21_JAKOSC_SKANU:
+        if (wartosc == 0U) return JEZYK_Wybierz("Szybki", "Fast", "Schnell", "Быстрый");
+        if (wartosc == 2U) return JEZYK_Wybierz("Dokładny", "Accurate", "Genau", "Точный");
+        return JEZYK_Wybierz("Normalny", "Normal", "Normal", "Обычный");
+    case CFG_PARAM_S21_SKALA_DB:
+        if (wartosc == 20U) return "0..-20 dB";
+        if (wartosc == 40U) return "0..-40 dB";
+        if (wartosc == 80U) return "0..-80 dB";
+        return "0..-60 dB";
+    case CFG_PARAM_S21_DUT_OHM:
+        if (wartosc == 75U) return "75 ohm";
+        if (wartosc == 300U) return "300 ohm";
+        if (wartosc == 600U) return "600 ohm";
+        if (wartosc == 910U) return "910 ohm";
+        return "50 ohm";
+    case CFG_PARAM_S21_PROFIL_SPEC:
+        if (wartosc == 1U) return "SFE 5.5MB";
+        if (wartosc == 2U) return "OMIG PP-10,7-B2/2";
+        return JEZYK_Wybierz("Brak", "None", "Kein", "Нет");
     default:
         break;
     }
@@ -2299,7 +2559,16 @@ static const char *CFG_NazwaLokalna(CFG_PARAM_t id)
     case CFG_PARAM_MASKA_MODELI_RF: return JEZYK_Wybierz("Aktywne modele RF", "Enabled RF models", "Aktive HF-Modelle", "Активные ВЧ-модели");
     case CFG_PARAM_MASKA_METOD_Q: return JEZYK_Wybierz("Aktywne metody Q", "Enabled Q methods", "Aktive Q-Methoden", "Активные методы Q");
     case CFG_PARAM_KABEL_PROFIL_AKTYWNY: return JEZYK_Wybierz("Kompensacja kabla", "Cable compensation", "Kabelkompensation", "Компенсация кабеля");
-    case CFG_PARAM_KOLOR_KRZYWEJ_SWR: return JEZYK_Wybierz("Kolor krzywej SWR", "SWR curve color", "SWR-Kurvenfarbe", "Цвет кривой КСВ");
+    case CFG_PARAM_KOLOR_KRZYWEJ_SWR: return JEZYK_Wybierz("Kolor krzywej wykresów", "Plot curve color", "Diagramm-Kurvenfarbe", "Цвет кривой графиков");
+    case CFG_PARAM_DIAGNOSTYKA_VI: return JEZYK_Wybierz("S21: poziomy V/I", "S21: V/I levels", "S21: V/I-Pegel", "S21: уровни V/I");
+    case CFG_PARAM_S21_AUTO_FILTR: return JEZYK_Wybierz("S21: automatyczne zawężanie", "S21: auto filter refine", "S21: automatische Verfeinerung", "S21: автоуточнение фильтра");
+    case CFG_PARAM_S21_JAKOSC_SKANU: return JEZYK_Wybierz("S21: jakość skanu", "S21: scan quality", "S21: Scanqualität", "S21: качество сканирования");
+    case CFG_PARAM_S21_SKALA_DB: return JEZYK_Wybierz("S21: skala pionowa", "S21: vertical scale", "S21: vertikale Skala", "S21: вертикальная шкала");
+    case CFG_PARAM_S21_NORMALIZUJ: return JEZYK_Wybierz("S21: wykres znormalizowany", "S21: normalized plot", "S21: normiertes Diagramm", "S21: нормированный график");
+    case CFG_PARAM_S21_DUT_OHM: return JEZYK_Wybierz("S21: impedancja DUT", "S21: DUT impedance", "S21: DUT-Impedanz", "S21: импеданс DUT");
+    case CFG_PARAM_S21_POROWNAJ_POPRZEDNI: return JEZYK_Wybierz("S21: ślad REF", "S21: reference trace", "S21: Referenzkurve", "S21: опорная трасса");
+    case CFG_PARAM_S21_TLO_RX: return JEZYK_Wybierz("S21: pomiar tła RX", "S21: receiver floor", "S21: RX-Rauschboden", "S21: фон приёмника");
+    case CFG_PARAM_S21_PROFIL_SPEC: return JEZYK_Wybierz("S21: profil odniesienia", "S21: reference profile", "S21: Referenzprofil", "S21: профиль эталона");
     default: return 0;
     }
 }
@@ -2358,7 +2627,16 @@ static const char *CFG_OpisLokalny(CFG_PARAM_t id)
     case CFG_PARAM_MASKA_MODELI_RF: return JEZYK_Wybierz("Maska modeli używanych w porównaniu Elementów RF. Ustawienie zaawansowane; pozostaw wszystkie metody, jeśli nie prowadzisz świadomej diagnostyki.", "Models included in RF-component comparison. Advanced setting; keep all methods unless performing deliberate diagnostics.", "Modelle im HF-Bauteilevergleich. Erweiterte Einstellung; für normale Arbeit alle Methoden aktiviert lassen.", "Модели сравнения ВЧ-элементов. Расширенная настройка; при обычной работе оставьте все методы.");
     case CFG_PARAM_MASKA_METOD_Q: return JEZYK_Wybierz("Maska metod używanych w porównaniu dobroci Q. Ustawienie zaawansowane; pełne porównanie najlepiej wykrywa niezgodność metod.", "Methods included in Q comparison. Advanced setting; the full comparison is best at detecting disagreement.", "Methoden im Q-Vergleich. Erweiterte Einstellung; der vollständige Vergleich erkennt Abweichungen am sichersten.", "Методы сравнения Q. Расширенная настройка; полное сравнение лучше выявляет расхождения.");
     case CFG_PARAM_KABEL_PROFIL_AKTYWNY: return JEZYK_Wybierz("Usuwa wpływ zapisanego profilu kabla OPEN/SHORT z pomiarów antenowych. Nie jest zwykłym odejmowaniem impedancji.", "Removes the saved OPEN/SHORT cable profile from antenna measurements. This is not simple impedance subtraction.", "Entfernt das gespeicherte OPEN/SHORT-Kabelprofil aus Antennenmessungen. Keine einfache Impedanzsubtraktion.", "Удаляет сохранённый профиль кабеля OPEN/SHORT из измерений антенны. Это не простое вычитание импеданса.");
-    case CFG_PARAM_KOLOR_KRZYWEJ_SWR: return JEZYK_Wybierz("Kolor głównej krzywej na wykresie SWR w stylu retro. Nie zmienia siatki ani drugiej krzywej R/X.", "Color of the main curve on the retro-style SWR chart. Does not change the grid or the secondary R/X curve.", "Farbe der Hauptkurve im Retro-SWR-Diagramm. Ändert weder das Gitter noch die zweite R/X-Kurve.", "Цвет основной кривой на графике КСВ в ретро-стиле. Не влияет на сетку и вторую кривую R/X.");
+    case CFG_PARAM_KOLOR_KRZYWEJ_SWR: return JEZYK_Wybierz("Wspólny kolor głównej krzywej na wykresach SWR i S21. Nie zmienia siatki ani pomocniczych krzywych.", "Shared main-curve color for SWR and S21 plots. It does not change the grid or auxiliary curves.", "Gemeinsame Farbe der Hauptkurve in SWR- und S21-Diagrammen. Gitter und Hilfskurven bleiben unverändert.", "Общий цвет основной кривой графиков КСВ и S21. Сетка и вспомогательные кривые не меняются.");
+    case CFG_PARAM_DIAGNOSTYKA_VI: return JEZYK_Wybierz("Pokazuje surowe poziomy toru V/I i ocenę wiarygodności punktu. Funkcja diagnostyczna nie zmienia wyniku pomiaru.", "Shows raw V/I levels and point confidence. This diagnostic option does not alter the measurement result.", "Zeigt rohe V/I-Pegel und die Vertrauensbewertung eines Punktes. Die Diagnose ändert den Messwert nicht.", "Показывает исходные уровни V/I и оценку достоверности точки. Диагностика не изменяет результат измерения.");
+    case CFG_PARAM_S21_AUTO_FILTR: return JEZYK_Wybierz("Auto centruje wykryty filtr i zagęszcza skan.", "Auto centers the detected filter and refines the scan.", "Auto zentriert den Filter und verfeinert den Scan.", "Auto центрирует фильтр и уплотняет скан.");
+    case CFG_PARAM_S21_JAKOSC_SKANU: return JEZYK_Wybierz("Liczba powtórzeń na punkt; Dokładny jest wolniejszy.", "Repeats per point; Accurate is slower.", "Wiederholungen je Punkt; Genau ist langsamer.", "Повторы на точку; Точный режим медленнее.");
+    case CFG_PARAM_S21_SKALA_DB: return JEZYK_Wybierz("Tylko skala wykresu; nie zwiększa dynamiki toru.", "Plot scale only; it does not increase hardware range.", "Nur Diagrammskala; keine höhere Dynamik.", "Только шкала графика; динамику тракта не увеличивает.");
+    case CFG_PARAM_S21_NORMALIZUJ: return JEZYK_Wybierz("Maksimum jest 0 dB; obliczenia używają danych bezwzględnych.", "Maximum is 0 dB; calculations stay absolute.", "Maximum wird 0 dB; Berechnung bleibt absolut.", "Максимум = 0 дБ; расчёты остаются абсолютными.");
+    case CFG_PARAM_S21_DUT_OHM: return JEZYK_Wybierz("Wartość informacyjna. Dla DUT != 50 om użyj adaptera i kalibruj z nim.", "Informational. For DUT != 50 ohm use and calibrate with an adapter.", "Nur Hinweis. Bei DUT != 50 Ohm Adapter mitkalibrieren.", "Справочно. Для DUT != 50 Ом используйте адаптер и калибруйте с ним.");
+    case CFG_PARAM_S21_POROWNAJ_POPRZEDNI: return JEZYK_Wybierz("Pokazuje poprzedni ręczny pomiar jako REF przy tym samym zakresie.", "Shows the previous manual trace as REF for the same range.", "Zeigt die vorherige Handmessung als REF im gleichen Bereich.", "Показывает предыдущий ручной график как REF при том же диапазоне.");
+    case CFG_PARAM_S21_TLO_RX: return JEZYK_Wybierz("Mierzy tło RX w 3 punktach. Pokazuje granicę; nie odejmuje jej od S21.", "Measures RX floor at 3 points. Shows a limit; never subtracts it from S21.", "Misst RX-Boden an 3 Punkten. Nur Grenze, keine Subtraktion.", "Измеряет фон RX в 3 точках. Только граница, без вычитания.");
+    case CFG_PARAM_S21_PROFIL_SPEC: return JEZYK_Wybierz("Profil odniesienia: SFE ocenia warunkowo; OMIG pokazuje tylko wzorzec 15 kHz.", "Reference profile: SFE can be checked conditionally; OMIG shows a 15 kHz reference only.", "Referenzprofil: SFE bedingt prüfbar; OMIG nur 15-kHz-Referenz.", "Профиль: SFE — условная оценка; OMIG — только ориентир 15 кГц.");
     default: return 0;
     }
 }

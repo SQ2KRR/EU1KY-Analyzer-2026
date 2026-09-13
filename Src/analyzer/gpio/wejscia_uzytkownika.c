@@ -58,6 +58,8 @@ static uint8_t kolejka_koniec;
 static uint8_t poprzedni_stan_enkodera;
 static int8_t suma_enkodera;
 static uint8_t wejscia_gotowe;
+static WEJSCIA_TRYB_PRZYCISKU_ENKODERA_t tryb_przycisku_enkodera = WEJSCIA_PRZYCISK_ENKODERA_OK;
+static volatile uint8_t zadanie_zrzutu;
 
 static void DodajZdarzenie(WEJSCIE_ZDARZENIE_t zdarzenie)
 {
@@ -112,7 +114,22 @@ static void AktualizujPrzycisk(PRZYCISK_t *przycisk, uint32_t teraz_ms)
 
     przycisk->stan_stabilny = stan;
     if (stan)
-        DodajZdarzenie(przycisk->zdarzenie_nacisniecia);
+    {
+        /*
+         * Przycisk osi enkodera moze zostac przeznaczony na szybki zrzut.
+         * Nie uruchamiamy tutaj zapisu pliku: ta warstwa ma pozostac
+         * nieblokujaca i zajmowac sie tylko fizycznymi wejsciami.
+         */
+        if (przycisk == &przycisk_ok &&
+            tryb_przycisku_enkodera == WEJSCIA_PRZYCISK_ENKODERA_ZRZUT)
+        {
+            zadanie_zrzutu = 1U;
+        }
+        else
+        {
+            DodajZdarzenie(przycisk->zdarzenie_nacisniecia);
+        }
+    }
 }
 
 static uint8_t OdczytajStanEnkodera(void)
@@ -184,6 +201,7 @@ void WEJSCIA_Init(void)
     HAL_GPIO_Init(GPIOF, &gpio);
 
     WEJSCIA_WyczyscZdarzenia();
+    zadanie_zrzutu = 0U;
     poprzedni_stan_enkodera = OdczytajStanEnkodera();
     suma_enkodera = 0;
 
@@ -224,4 +242,25 @@ void WEJSCIA_WyczyscZdarzenia(void)
 {
     kolejka_poczatek = 0;
     kolejka_koniec = 0;
+}
+
+void WEJSCIA_UstawTrybPrzyciskuEnkodera(WEJSCIA_TRYB_PRZYCISKU_ENKODERA_t tryb)
+{
+    if (tryb != WEJSCIA_PRZYCISK_ENKODERA_ZRZUT)
+        tryb = WEJSCIA_PRZYCISK_ENKODERA_OK;
+
+    tryb_przycisku_enkodera = tryb;
+    zadanie_zrzutu = 0U;
+}
+
+WEJSCIA_TRYB_PRZYCISKU_ENKODERA_t WEJSCIA_PobierzTrybPrzyciskuEnkodera(void)
+{
+    return tryb_przycisku_enkodera;
+}
+
+uint8_t WEJSCIA_PobierzZadanieZrzutu(void)
+{
+    const uint8_t wynik = zadanie_zrzutu;
+    zadanie_zrzutu = 0U;
+    return wynik;
 }
